@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../api';
 import { BarList } from '../components/charts';
+import { IngredientsTabs } from '../components/IngredientsTabs';
 import { useToast } from '../components/Toast';
 import { Empty, Field, LoadError, MoneyInput, Panel, Sheet, Spinner, toAmount } from '../components/ui';
 import { inr, longDay, monthName, monthRange, num, shiftMonth, todayLocal } from '../lib/format';
@@ -47,6 +48,8 @@ export function PurchasesPage() {
           <p className="subtitle">What you buy to make tiramisu</p>
         </div>
       </div>
+
+      <IngredientsTabs />
 
       <div className="purchase-grid">
         <Panel title="Add purchase" id="add-purchase" className="purchase-form-panel">
@@ -290,6 +293,8 @@ function PurchaseForm({
           <input id={`${idp}-unit`} className="input" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="g, ml, pcs" maxLength={20} />
         </Field>
       </div>
+
+      <p className="field-hint">Add the quantity so Daily use can work out the cost of what you use.</p>
 
       <Field label="Note" htmlFor={`${idp}-note`}>
         <input id={`${idp}-note`} className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Shop, brand… (optional)" maxLength={200} />

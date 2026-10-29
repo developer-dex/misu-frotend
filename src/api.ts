@@ -1,4 +1,4 @@
-import type { DayView, Ingredient, Payment, Product, Purchase, Report } from './types';
+import type { DayView, Ingredient, Order, Payment, Product, Purchase, Report, SessionLog, StallSession, StockItem, UsageEntry } from './types';
 
 const TOKEN_KEY = 'misu.token';
 
@@ -56,9 +56,9 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 const qs = (params: Record<string, string>) => `?${new URLSearchParams(params).toString()}`;
 
 export const api = {
-  authStatus: () => request<{ authRequired: boolean }>('GET', '/auth/status'),
-  login: (passcode: string) => request<{ token: string | null }>('POST', '/auth/login', { passcode }),
-  me: () => request<{ ok: true }>('GET', '/auth/me'),
+  login: (username: string, password: string) =>
+    request<{ token: string; user: { username: string } }>('POST', '/auth/login', { username, password }),
+  me: () => request<{ user: { username: string } }>('GET', '/auth/me'),
 
   products: () => request<Product[]>('GET', '/products'),
   addProduct: (body: { name: string; price: number }) => request<Product>('POST', '/products', body),
@@ -73,8 +73,8 @@ export const api = {
 
   currentDay: (date: string) => request<DayView>('GET', `/days/current${qs({ date })}`),
   day: (day: string) => request<DayView>('GET', `/days/${day}`),
-  startShift: (day: string) => request<DayView>('POST', `/days/${day}/shift/start`),
-  stopShift: (day: string) => request<DayView>('POST', `/days/${day}/shift/stop`),
+  startSession: (day: string) => request<DayView>('POST', `/days/${day}/session/start`),
+  stopSession: (day: string) => request<DayView>('POST', `/days/${day}/session/stop`),
   setPrepared: (day: string, items: { productId: string; qty: number }[]) =>
     request<DayView>('PUT', `/days/${day}/prepared`, { items }),
 
@@ -88,6 +88,19 @@ export const api = {
   updatePurchase: (id: string, body: Partial<Omit<Purchase, 'id' | 'createdAt'>>) =>
     request<Purchase>('PATCH', `/purchases/${id}`, body),
   deletePurchase: (id: string) => request<void>('DELETE', `/purchases/${id}`),
+
+  sessions: (from: string, to: string) => request<SessionLog>('GET', `/sessions${qs({ from, to })}`),
+  session: (id: string) => request<{ session: StallSession; orders: Order[] }>('GET', `/sessions/${id}`),
+  deleteSession: (id: string) => request<void>('DELETE', `/sessions/${id}`),
+
+  usage: (from: string, to: string) =>
+    request<{ entries: UsageEntry[]; madeByDay: Record<string, number> }>('GET', `/usage${qs({ from, to })}`),
+  addUsage: (body: { date: string; ingredientId: string; quantity: number; cost?: number; note?: string }) =>
+    request<UsageEntry>('POST', '/usage', body),
+  updateUsage: (id: string, body: { quantity?: number; cost?: number; note?: string; date?: string }) =>
+    request<UsageEntry>('PATCH', `/usage/${id}`, body),
+  deleteUsage: (id: string) => request<void>('DELETE', `/usage/${id}`),
+  stock: () => request<StockItem[]>('GET', '/stock'),
 
   report: (from: string, to: string) => request<Report>('GET', `/reports${qs({ from, to })}`),
 };

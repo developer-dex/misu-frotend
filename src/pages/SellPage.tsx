@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Banknote, CalendarDays, Check, Pause, Play, Smartphone } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, MoneyInput, Panel, Sheet, Spinner, Stepper, toAmount } from '../components/ui';
-import { clockTime, inr, longDay, num, plural, shortDay, stopwatch, todayLocal } from '../lib/format';
+import { clockTime, duration, inr, longDay, num, plural, shortDay, stopwatch, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
 import type { DayView, Order, Payment, Product } from '../types';
 
@@ -17,9 +18,8 @@ function useNow(active: boolean): number {
   return now;
 }
 
-/** Worked time including the shift that is still running. */
-function workedNow(view: DayView, now: number): number {
-  return view.shifts.reduce((sum, s) => sum + ((s.end ? Date.parse(s.end) : now) - Date.parse(s.start)), 0);
+function sessionMs(s: { start: string; end: string | null }, now: number): number {
+  return (s.end ? Date.parse(s.end) : now) - Date.parse(s.start);
 }
 
 function itemsLabel(order: Order): string {
@@ -116,20 +116,30 @@ function DayPicker({ day, onPick, isToday }: { day: string; onPick: (d: string) 
   );
 }
 
+/**
+ * The stall clock. While it runs it shows the current session: its time and
+ * what has been sold since Start. When stopped it shows the day's total.
+ */
 function ShiftClock({ view, onChange }: { view: DayView; onChange: (v: DayView) => void }) {
   const toast = useToast();
   const now = useNow(view.running);
   const [busy, setBusy] = useState(false);
-  const worked = workedNow(view, now);
-  const open = view.shifts.find((s) => s.end === null);
-  const last = view.shifts[view.shifts.length - 1];
-  const hours = worked / 3_600_000;
-  const rate = worked >= 5 * 60_000 ? view.summary.units / hours : null;
+  const current = view.currentSession;
+  const dayMs = view.sessions.reduce((sum, s) => sum + sessionMs(s, now), 0);
+  const last = view.sessions[view.sessions.length - 1];
+
+  // Figures for the running session, or for the whole day when the clock is stopped
+  const shownMs = current ? sessionMs(current, now) : dayMs;
+  const units = current ? current.units : view.summary.units;
+  const net = current ? current.net : view.summary.net;
+  const hours = shownMs / 3_600_000;
+  const rate = shownMs >= 5 * 60_000 ? units / hours : null;
 
   const toggle = async () => {
     setBusy(true);
     try {
-      onChange(view.running ? await api.stopShift(view.day) : await api.startShift(view.day));
+      onChange(view.running ? await api.stopSession(view.day) : await api.startSession(view.day));
+      toast(view.running ? 'Session stopped' : `Session ${view.sessions.length + 1} started`);
     } catch (err) {
       toast((err as Error).message, { tone: 'error' });
     } finally {
@@ -138,9 +148,14 @@ function ShiftClock({ view, onChange }: { view: DayView; onChange: (v: DayView) 
   };
 
   let status = 'Start the clock when you open the stall';
-  if (open) status = `Open since ${clockTime(open.start)}`;
-  else if (last?.end) status = `Closed at ${clockTime(last.end)}`;
-  if (view.shifts.length > 1) status += ` · ${view.shifts.length} sessions`;
+  if (current) status = `Since ${clockTime(current.start)}`;
+  else if (last?.end) status = `Last session ended at ${clockTime(last.end)}`;
+
+  let footer: string | null = null;
+  if (view.sessions.length > 0) {
+    footer = `Today: ${duration(dayMs)} over ${plural(view.sessions.length, 'session')}`;
+    if (current) footer += ` · ${plural(view.summary.units, 'tiramisu', 'tiramisu')} in all`;
+  }
 
   return (
     <Panel className={`clock ${view.running ? 'is-running' : ''}`}>
@@ -148,32 +163,38 @@ function ShiftClock({ view, onChange }: { view: DayView; onChange: (v: DayView) 
         <div>
           <p className="label">
             {view.running && <span className="live-dot" aria-hidden="true" />}
-            Stall time
+            {current ? `Session ${current.number}` : 'Stall time today'}
           </p>
           <p className="clock-time" aria-live="off">
-            {stopwatch(worked)}
+            {stopwatch(shownMs)}
           </p>
           <p className="meta">{status}</p>
         </div>
         <button type="button" className={`btn clock-btn ${view.running ? 'btn-stop' : 'btn-primary'}`} onClick={toggle} disabled={busy}>
           {view.running ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
-          {view.running ? 'Stop' : view.shifts.length ? 'Resume' : 'Start'}
+          {view.running ? 'Stop' : 'Start'}
         </button>
       </div>
       <dl className="clock-stats">
         <div>
           <dt>Sold</dt>
-          <dd>{num(view.summary.units)}</dd>
+          <dd>{num(units)}</dd>
         </div>
         <div>
           <dt>Per hour</dt>
           <dd>{rate === null ? <span className="dash">–</span> : rate.toFixed(1)}</dd>
         </div>
         <div>
-          <dt>₹ per hour</dt>
-          <dd>{rate === null ? <span className="dash">–</span> : inr(Math.round(view.summary.net / hours))}</dd>
+          <dt>{current ? 'Takings' : '₹ per hour'}</dt>
+          <dd>{current ? inr(net) : rate === null ? <span className="dash">–</span> : inr(Math.round(net / hours))}</dd>
         </div>
       </dl>
+      <div className="clock-foot">
+        <span className="meta">{footer ?? 'Each Start and Stop is saved in the session log.'}</span>
+        <Link to="/sessions" className="link-btn">
+          Session log
+        </Link>
+      </div>
     </Panel>
   );
 }

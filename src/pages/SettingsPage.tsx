@@ -7,7 +7,7 @@ import { inr } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
 import type { Ingredient, Product } from '../types';
 
-export function SettingsPage({ onLogout }: { onLogout?: () => void }) {
+export function SettingsPage({ username, onLogout }: { username: string; onLogout: () => void }) {
   return (
     <div className="page">
       <div className="title-row">
@@ -19,14 +19,17 @@ export function SettingsPage({ onLogout }: { onLogout?: () => void }) {
       <div className="settings-grid">
         <FlavoursPanel />
         <ItemsPanel />
-        {onLogout && (
-          <Panel title="This device" id="device">
-            <p className="meta">You stay logged in on this phone for 30 days.</p>
+        <Panel title="Account" id="account">
+          <div className="account-row">
+            <div className="settings-name">
+              <strong>Logged in as {username}</strong>
+              <span className="meta">You stay logged in on this device for 30 days.</span>
+            </div>
             <button type="button" className="btn btn-quiet" onClick={onLogout}>
               Log out
             </button>
-          </Panel>
-        )}
+          </div>
+        </Panel>
       </div>
     </div>
   );

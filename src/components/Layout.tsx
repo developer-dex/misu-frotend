@@ -1,10 +1,12 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { BarChart3, LogOut, Settings, ShoppingBasket, Store } from 'lucide-react';
+import { BarChart3, LogOut, Settings, ShoppingBasket, Store, Timer } from 'lucide-react';
 import { longDay, todayLocal } from '../lib/format';
 
 const NAV = [
   { to: '/', label: 'Sell', icon: Store, end: true },
-  { to: '/purchases', label: 'Purchases', icon: ShoppingBasket },
+  { to: '/sessions', label: 'Sessions', icon: Timer },
+  // One entry for the three ingredient screens (daily use, purchases, stock)
+  { to: '/usage', label: 'Ingredients', icon: ShoppingBasket, also: ['/purchases', '/stock'] },
   { to: '/reports', label: 'Reports', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -21,30 +23,40 @@ function Brand() {
   );
 }
 
-export function Layout({ onLogout }: { onLogout?: () => void }) {
+type NavEntry = (typeof NAV)[number] & { also?: string[] };
+
+function isCurrent(n: NavEntry, pathname: string): boolean {
+  if (n.end) return pathname === n.to;
+  return [n.to, ...(n.also ?? [])].some((p) => pathname.startsWith(p));
+}
+
+export function Layout({ username, onLogout }: { username: string; onLogout: () => void }) {
   const { pathname } = useLocation();
-  const current = NAV.find((n) => (n.end ? pathname === n.to : pathname.startsWith(n.to)));
+  const current = NAV.find((n) => isCurrent(n, pathname));
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <Brand />
         <nav aria-label="Main">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className="nav-item">
-              <Icon size={18} strokeWidth={1.75} aria-hidden="true" />
-              {label}
+          {NAV.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.end} className={() => `nav-item ${isCurrent(n, pathname) ? 'active' : ''}`}>
+              <n.icon size={18} strokeWidth={1.75} aria-hidden="true" />
+              {n.label}
             </NavLink>
           ))}
         </nav>
         <div className="sidebar-foot">
           <span>{longDay(todayLocal())}</span>
-          {onLogout && (
-            <button type="button" className="nav-item" onClick={onLogout}>
-              <LogOut size={18} strokeWidth={1.75} aria-hidden="true" />
-              Log out
+          <div className="sidebar-user">
+            <span className="avatar" aria-hidden="true">
+              {username.charAt(0).toUpperCase()}
+            </span>
+            <span className="sidebar-username">{username}</span>
+            <button type="button" className="icon-btn" onClick={onLogout} aria-label="Log out" title="Log out">
+              <LogOut size={18} strokeWidth={1.75} />
             </button>
-          )}
+          </div>
         </div>
       </aside>
 
@@ -58,10 +70,10 @@ export function Layout({ onLogout }: { onLogout?: () => void }) {
       </main>
 
       <nav className="tabbar" aria-label="Main">
-        {NAV.map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className="tab">
-            <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-            <span>{label}</span>
+        {NAV.map((n) => (
+          <NavLink key={n.to} to={n.to} end={n.end} className={() => `tab ${isCurrent(n, pathname) ? 'active' : ''}`}>
+            <n.icon size={22} strokeWidth={1.75} aria-hidden="true" />
+            <span>{n.label}</span>
           </NavLink>
         ))}
       </nav>

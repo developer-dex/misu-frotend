@@ -30,11 +30,47 @@ export interface Order {
   total: number;
   payment: Payment;
   note: string;
+  sessionId: string | null;
 }
 
-export interface Shift {
+/** One run of the stall clock and what was sold during it. */
+export interface StallSession {
+  id: string;
+  number: number;
+  day: string;
   start: string;
   end: string | null;
+  running: boolean;
+  durationMs: number;
+  startedBy: string | null;
+  stoppedBy: string | null;
+  orderCount: number;
+  units: number;
+  unitsByProduct: Record<string, number>;
+  gross: number;
+  discount: number;
+  net: number;
+  cash: number;
+  online: number;
+  unitsPerHour: number | null;
+}
+
+export interface SessionLog {
+  from: string;
+  to: string;
+  products: { productId: string; name: string }[];
+  totals: {
+    sessionCount: number;
+    durationMs: number;
+    orderCount: number;
+    units: number;
+    net: number;
+    cash: number;
+    online: number;
+    unitsPerHour: number | null;
+  };
+  sessions: StallSession[];
+  outside: { day: string; orderCount: number; units: number; net: number }[];
 }
 
 export interface Takings {
@@ -50,7 +86,8 @@ export interface Takings {
 export interface DayView {
   day: string;
   serverTime: string;
-  shifts: Shift[];
+  sessions: StallSession[];
+  currentSession: StallSession | null;
   running: boolean;
   workedMs: number;
   byProduct: { productId: string; name: string; sold: number; prepared: number | null }[];
@@ -74,6 +111,8 @@ export interface ReportDay extends Takings {
   unitsByProduct: Record<string, number>;
   prepared: number | null;
   spend: number;
+  usedCost: number;
+  sessionCount: number;
   workedMs: number;
 }
 
@@ -82,6 +121,9 @@ export interface Report {
   to: string;
   totals: Takings & {
     spend: number;
+    usedCost: number;
+    usageLogged: boolean;
+    costPerTiramisu: number | null;
     profit: number;
     workedMs: number;
     stallDays: number;
@@ -90,4 +132,33 @@ export interface Report {
   products: { productId: string; name: string; units: number; gross: number }[];
   spendByItem: { item: string; amount: number }[];
   days: ReportDay[];
+}
+
+export interface UsageEntry {
+  id: string;
+  date: string;
+  ingredientId: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  unitCost: number;
+  cost: number;
+  costSource: 'average' | 'manual';
+  note: string;
+  createdAt: string;
+}
+
+export interface StockItem {
+  ingredientId: string;
+  name: string;
+  unit: string;
+  boughtQty: number;
+  boughtAmount: number;
+  unpricedPurchases: number;
+  unitCost: number | null;
+  usedQty: number;
+  usedCost: number;
+  leftQty: number;
+  leftValue: number;
+  lastUsed: string | null;
 }

@@ -125,11 +125,12 @@ function ReportBody({ r, loading }: { r: Report; loading: boolean }) {
           <dd>{inr(t.net)}</dd>
         </div>
         <div>
-          <dt>Spent on purchases</dt>
-          <dd>{inr(t.spend)}</dd>
+          <dt>{t.usageLogged ? 'Ingredients used' : 'Spent on purchases'}</dt>
+          <dd>{inr(t.usageLogged ? t.usedCost : t.spend)}</dd>
+          {t.costPerTiramisu !== null && <dd className="kpi-sub">{inr(Math.round(t.costPerTiramisu * 100) / 100)} per tiramisu made</dd>}
         </div>
         <div>
-          <dt>Profit</dt>
+          <dt>{t.usageLogged ? 'Profit after ingredients' : 'Profit after purchases'}</dt>
           <dd className={t.profit < 0 ? 'is-bad' : t.profit > 0 ? 'is-good' : ''}>{t.profit < 0 ? `−${inr(-t.profit)}` : inr(t.profit)}</dd>
         </div>
         <div>
@@ -196,7 +197,7 @@ function ReportBody({ r, loading }: { r: Report; loading: boolean }) {
           )}
         </Panel>
 
-        <Panel title="Spending by item" id="spend" className="tablet-wide">
+        <Panel title="Purchases by item" id="spend" className="tablet-wide" aside={t.spend > 0 ? <span className="meta">{inr(t.spend)} in all</span> : null}>
           {r.spendByItem.length === 0 ? (
             <Empty>No purchases in these dates.</Empty>
           ) : (
@@ -249,6 +250,9 @@ function DayTable({ r, days }: { r: Report; days: Report['days'] }) {
             <th scope="col" className="num">
               Spent
             </th>
+            <th scope="col" className="num">
+              Used
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -269,6 +273,7 @@ function DayTable({ r, days }: { r: Report; days: Report['days'] }) {
                 <td className="num">{d.discount ? `−${inr(d.discount)}` : inr(0)}</td>
                 <td className="num strong">{inr(d.net)}</td>
                 <td className="num">{inr(d.spend)}</td>
+                <td className="num">{d.usedCost ? inr(d.usedCost) : <span className="dash">–</span>}</td>
               </tr>
             );
           })}
@@ -291,6 +296,7 @@ function DayTable({ r, days }: { r: Report; days: Report['days'] }) {
               <span className="num">
                 Cash {inr(d.cash)} · Online {inr(d.online)}
                 {d.spend ? ` · Spent ${inr(d.spend)}` : ''}
+                {d.usedCost ? ` · Used ${inr(d.usedCost)}` : ''}
               </span>
             </div>
           </li>

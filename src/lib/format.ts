@@ -11,6 +11,17 @@ export function num(n: number): string {
   return plain.format(n);
 }
 
+/** Price per unit, with enough decimals for small amounts: "₹0.825/g", "₹12.50/pcs" */
+export function unitRate(rate: number, unit: string): string {
+  const digits = rate < 1 ? 3 : 2;
+  return `₹${rate.toLocaleString('en-IN', { maximumFractionDigits: digits })}/${unit}`;
+}
+
+/** "200 g", "1.5 pack" */
+export function qtyUnit(qty: number, unit: string): string {
+  return `${num(qty)} ${unit}`;
+}
+
 /** Today on this device, as YYYY-MM-DD. */
 export function todayLocal(now = new Date()): string {
   const y = now.getFullYear();
