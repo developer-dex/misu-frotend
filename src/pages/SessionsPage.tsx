@@ -119,6 +119,7 @@ export function SessionsPage() {
                             <strong>
                               Session {s.number}
                               {s.running && <span className="pill pill-live">Running</span>}
+                              {s.source === 'summary' && <span className="pill pill-cash">Typed in</span>}
                             </strong>
                             <span className="meta">
                               {timeRange(s)} · {duration(liveMs(s, now))}
@@ -278,7 +279,7 @@ function SessionSheet({
                 {detail.orders.map((o) => (
                   <li key={o.id}>
                     <div className="order-row">
-                      <span className="order-time">{clockTime(o.createdAt)}</span>
+                      <span className="order-time">{o.source === 'summary' ? 'Day total' : clockTime(o.createdAt)}</span>
                       <span className="order-items">
                         {o.items.map((i) => `${i.qty} ${i.name}`).join(' · ')}
                         {o.discount > 0 && <span className="order-discount-note"> · −{inr(o.discount)}</span>}

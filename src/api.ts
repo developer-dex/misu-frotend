@@ -1,4 +1,4 @@
-import type { DayView, Ingredient, Order, Payment, Product, Purchase, Report, SessionLog, StallSession, StockItem, UsageEntry } from './types';
+import type { DayEntry, DayEntryInput, DayView, Ingredient, Order, Payment, Product, Purchase, Report, SessionLog, StallSession, StockItem, UsageEntry } from './types';
 
 const TOKEN_KEY = 'misu.token';
 
@@ -77,6 +77,9 @@ export const api = {
   stopSession: (day: string) => request<DayView>('POST', `/days/${day}/session/stop`),
   setPrepared: (day: string, items: { productId: string; qty: number }[]) =>
     request<DayView>('PUT', `/days/${day}/prepared`, { items }),
+  dayEntry: (day: string) => request<DayEntry>('GET', `/days/${day}/entry`),
+  saveDayEntry: (day: string, body: DayEntryInput) => request<DayEntry>('PUT', `/days/${day}/entry`, body),
+  clearDayEntry: (day: string) => request<DayEntry>('DELETE', `/days/${day}/entry`),
 
   addOrder: (body: { day: string; items: { productId: string; qty: number }[]; discount: number; payment: Payment }) =>
     request<{ orderId: string; day: DayView }>('POST', '/orders', body),

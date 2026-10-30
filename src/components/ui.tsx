@@ -33,21 +33,40 @@ export function Stepper({
   min = 0,
   max = 999,
   label,
+  typeable = false,
 }: {
   value: number;
   onChange: (n: number) => void;
   min?: number;
   max?: number;
   label: string;
+  /** Lets the number be typed as well as tapped, for counts like 34 */
+  typeable?: boolean;
 }) {
   return (
     <div className="stepper" role="group" aria-label={label}>
       <button type="button" className="stepper-btn" onClick={() => onChange(Math.max(min, value - 1))} disabled={value <= min} aria-label={`One less ${label}`}>
         <Minus size={18} strokeWidth={2} />
       </button>
-      <output className="stepper-value" aria-live="polite">
-        {value}
-      </output>
+      {typeable ? (
+        <input
+          className="stepper-value stepper-input"
+          inputMode="numeric"
+          autoComplete="off"
+          aria-label={label}
+          value={value === 0 ? '' : String(value)}
+          placeholder="0"
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => {
+            const n = Number.parseInt(e.target.value.replace(/\D/g, ''), 10);
+            onChange(Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : min);
+          }}
+        />
+      ) : (
+        <output className="stepper-value" aria-live="polite">
+          {value}
+        </output>
+      )}
       <button type="button" className="stepper-btn" onClick={() => onChange(Math.min(max, value + 1))} disabled={value >= max} aria-label={`One more ${label}`}>
         <Plus size={18} strokeWidth={2} />
       </button>

@@ -3,7 +3,7 @@ import { BarChart3, LogOut, Settings, ShoppingBasket, Store, Timer } from 'lucid
 import { longDay, todayLocal } from '../lib/format';
 
 const NAV = [
-  { to: '/', label: 'Sell', icon: Store, end: true },
+  { to: '/', label: 'Sell', icon: Store, end: true, also: ['/past'] },
   { to: '/sessions', label: 'Sessions', icon: Timer },
   // One entry for the three ingredient screens (daily use, purchases, stock)
   { to: '/usage', label: 'Ingredients', icon: ShoppingBasket, also: ['/purchases', '/stock'] },
@@ -26,8 +26,9 @@ function Brand() {
 type NavEntry = (typeof NAV)[number] & { also?: string[] };
 
 function isCurrent(n: NavEntry, pathname: string): boolean {
-  if (n.end) return pathname === n.to;
-  return [n.to, ...(n.also ?? [])].some((p) => pathname.startsWith(p));
+  const also = (n.also ?? []).some((p) => pathname.startsWith(p));
+  if (n.end) return pathname === n.to || also;
+  return pathname.startsWith(n.to) || also;
 }
 
 export function Layout({ username, onLogout }: { username: string; onLogout: () => void }) {

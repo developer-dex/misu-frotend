@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { ToastProvider } from './components/Toast';
 import { LoadError, Spinner } from './components/ui';
 import { LoginPage } from './pages/LoginPage';
+import { PastDaysPage } from './pages/PastDaysPage';
 import { PurchasesPage } from './pages/PurchasesPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SellPage } from './pages/SellPage';
@@ -71,6 +72,7 @@ export function App() {
         <Routes>
           <Route element={<Layout username={auth.username} onLogout={logout} />}>
             <Route index element={<SellPage />} />
+            <Route path="past" element={<PastDaysPage />} />
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="usage" element={<UsagePage />} />
             <Route path="purchases" element={<PurchasesPage />} />

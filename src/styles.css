@@ -1540,6 +1540,97 @@ button:disabled {
   color: var(--data-strong);
 }
 
+/* ---------- Past days ---------- */
+.past-list {
+  margin: 0 -8px;
+}
+
+.past-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line-row);
+  background: none;
+  text-align: left;
+}
+
+.past-list li:last-child .past-row {
+  border-bottom: 0;
+}
+
+.past-row:hover {
+  background: var(--surface-2);
+}
+
+.past-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.past-main strong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.past-add {
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.past-more {
+  margin-top: 12px;
+}
+
+.entry-form {
+  gap: 22px;
+}
+
+.entry-section .flavour-list {
+  margin-top: 4px;
+}
+
+.entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entry-head .sheet-subhead {
+  margin-bottom: 4px;
+}
+
+.stepper-input {
+  width: 64px;
+  height: 44px;
+  padding: 0 4px;
+  border: 1px solid var(--line-control);
+  border-radius: var(--r-ctl);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.stepper-input:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.stepper-input::placeholder {
+  color: var(--ink-3);
+}
+
 /* ---------- Charts ---------- */
 .barlist {
   display: flex;

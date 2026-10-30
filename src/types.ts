@@ -1,5 +1,8 @@
 export type Payment = 'cash' | 'online';
 
+/** 'live' = rung up on the Sell screen; 'summary' = a day's totals typed in on Past days. */
+export type EntrySource = 'live' | 'summary';
+
 export interface Product {
   id: string;
   name: string;
@@ -31,6 +34,7 @@ export interface Order {
   payment: Payment;
   note: string;
   sessionId: string | null;
+  source: EntrySource;
 }
 
 /** One run of the stall clock and what was sold during it. */
@@ -44,6 +48,7 @@ export interface StallSession {
   durationMs: number;
   startedBy: string | null;
   stoppedBy: string | null;
+  source: EntrySource;
   orderCount: number;
   units: number;
   unitsByProduct: Record<string, number>;
@@ -114,6 +119,7 @@ export interface ReportDay extends Takings {
   usedCost: number;
   sessionCount: number;
   workedMs: number;
+  entered: boolean;
 }
 
 export interface Report {
@@ -161,4 +167,30 @@ export interface StockItem {
   leftQty: number;
   leftValue: number;
   lastUsed: string | null;
+}
+
+export interface EntryLine {
+  productId: string;
+  qty: number;
+}
+
+/** A whole day's sales typed in afterwards, on Past days. */
+export interface DayEntry {
+  day: string;
+  exists: boolean;
+  opened: string | null;
+  closed: string | null;
+  cash: { items: EntryLine[]; discount: number };
+  online: { items: EntryLine[]; discount: number };
+  prepared: EntryLine[];
+  products: { productId: string; name: string; price: number; active: boolean }[];
+  live: { orderCount: number; units: number; net: number; sessionCount: number };
+}
+
+export interface DayEntryInput {
+  opened: string | null;
+  closed: string | null;
+  cash: { items: EntryLine[]; discount: number };
+  online: { items: EntryLine[]; discount: number };
+  prepared: EntryLine[] | null;
 }

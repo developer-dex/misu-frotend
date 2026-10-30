@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Banknote, CalendarDays, Check, Pause, Play, Smartphone } from 'lucide-react';
 import { api } from '../api';
+import { SellTabs } from '../components/SellTabs';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, MoneyInput, Panel, Sheet, Spinner, Stepper, toAmount } from '../components/ui';
 import { clockTime, duration, inr, longDay, num, plural, shortDay, stopwatch, todayLocal } from '../lib/format';
@@ -76,9 +77,14 @@ export function SellPage() {
         />
       </div>
 
+      <SellTabs />
+
       {view.day !== today && !view.running && (
         <p className="notice">
-          You are adding orders to {longDay(view.day)}.{' '}
+          You are adding orders to {longDay(view.day)}. Only have the day's totals?{' '}
+          <Link to={`/past?day=${view.day}`} className="link-btn">
+            Enter them in Past days
+          </Link>.{' '}
           <button type="button" className="link-btn" onClick={() => setPickedDay(null)}>
             Back to today
           </button>
@@ -87,7 +93,7 @@ export function SellPage() {
 
       <div className="sell-grid">
         <div className="sell-main">
-          <ShiftClock view={view} onChange={setView} />
+          <ShiftClock view={view} isPast={view.day < today} onChange={setView} />
           <OrderForm day={view.day} products={activeProducts} onSaved={setView} toast={toast} />
         </div>
         <div className="sell-side">
@@ -120,7 +126,7 @@ function DayPicker({ day, onPick, isToday }: { day: string; onPick: (d: string) 
  * The stall clock. While it runs it shows the current session: its time and
  * what has been sold since Start. When stopped it shows the day's total.
  */
-function ShiftClock({ view, onChange }: { view: DayView; onChange: (v: DayView) => void }) {
+function ShiftClock({ view, isPast, onChange }: { view: DayView; isPast: boolean; onChange: (v: DayView) => void }) {
   const toast = useToast();
   const now = useNow(view.running);
   const [busy, setBusy] = useState(false);
@@ -147,13 +153,13 @@ function ShiftClock({ view, onChange }: { view: DayView; onChange: (v: DayView) 
     }
   };
 
-  let status = 'Start the clock when you open the stall';
+  let status = isPast ? 'The clock only runs live. Type in past hours on Past days.' : 'Start the clock when you open the stall';
   if (current) status = `Since ${clockTime(current.start)}`;
   else if (last?.end) status = `Last session ended at ${clockTime(last.end)}`;
 
   let footer: string | null = null;
   if (view.sessions.length > 0) {
-    footer = `Today: ${duration(dayMs)} over ${plural(view.sessions.length, 'session')}`;
+    footer = `${isPast ? 'This day' : 'Today'}: ${duration(dayMs)} over ${plural(view.sessions.length, 'session')}`;
     if (current) footer += ` · ${plural(view.summary.units, 'tiramisu', 'tiramisu')} in all`;
   }
 
@@ -163,17 +169,24 @@ function ShiftClock({ view, onChange }: { view: DayView; onChange: (v: DayView) 
         <div>
           <p className="label">
             {view.running && <span className="live-dot" aria-hidden="true" />}
-            {current ? `Session ${current.number}` : 'Stall time today'}
+            {current ? `Session ${current.number}` : isPast ? 'Stall time' : 'Stall time today'}
           </p>
           <p className="clock-time" aria-live="off">
             {stopwatch(shownMs)}
           </p>
           <p className="meta">{status}</p>
         </div>
-        <button type="button" className={`btn clock-btn ${view.running ? 'btn-stop' : 'btn-primary'}`} onClick={toggle} disabled={busy}>
-          {view.running ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
-          {view.running ? 'Stop' : 'Start'}
-        </button>
+        {isPast && !view.running ? (
+          // Starting the clock on a past day would record today's time against it
+          <Link to={`/past?day=${view.day}`} className="btn btn-quiet clock-btn">
+            Set hours
+          </Link>
+        ) : (
+          <button type="button" className={`btn clock-btn ${view.running ? 'btn-stop' : 'btn-primary'}`} onClick={toggle} disabled={busy}>
+            {view.running ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
+            {view.running ? 'Stop' : 'Start'}
+          </button>
+        )}
       </div>
       <dl className="clock-stats">
         <div>
@@ -479,7 +492,7 @@ function OrdersPanel({ view, onChange }: { view: DayView; onChange: (v: DayView)
           {view.orders.map((o) => (
             <li key={o.id}>
               <button type="button" className="order-row" onClick={() => setSelected(o)}>
-                <span className="order-time">{clockTime(o.createdAt)}</span>
+                <span className="order-time">{o.source === 'summary' ? 'Day total' : clockTime(o.createdAt)}</span>
                 <span className="order-items">
                   {itemsLabel(o)}
                   {o.discount > 0 && <span className="order-discount-note"> · −{inr(o.discount)}</span>}
@@ -491,12 +504,22 @@ function OrdersPanel({ view, onChange }: { view: DayView; onChange: (v: DayView)
           ))}
         </ul>
       )}
-      <OrderSheet order={selected} onClose={() => setSelected(null)} onChange={onChange} />
+      <OrderSheet order={selected} dayOf={view.day} onClose={() => setSelected(null)} onChange={onChange} />
     </Panel>
   );
 }
 
-function OrderSheet({ order, onClose, onChange }: { order: Order | null; onClose: () => void; onChange: (v: DayView) => void }) {
+function OrderSheet({
+  order,
+  dayOf,
+  onClose,
+  onChange,
+}: {
+  order: Order | null;
+  dayOf: string;
+  onClose: () => void;
+  onChange: (v: DayView) => void;
+}) {
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -519,7 +542,11 @@ function OrderSheet({ order, onClose, onChange }: { order: Order | null; onClose
   const other: Payment = order?.payment === 'cash' ? 'online' : 'cash';
 
   return (
-    <Sheet open={order !== null} onClose={onClose} title={order ? `Order at ${clockTime(order.createdAt)}` : 'Order'}>
+    <Sheet
+      open={order !== null}
+      onClose={onClose}
+      title={order ? (order.source === 'summary' ? `Day total, paid ${order.payment}` : `Order at ${clockTime(order.createdAt)}`) : 'Order'}
+    >
       {order && (
         <>
           <dl className="order-sum order-detail">
@@ -542,20 +569,29 @@ function OrderSheet({ order, onClose, onChange }: { order: Order | null; onClose
               <dd>{inr(order.total)}</dd>
             </div>
           </dl>
-          <div className="sheet-actions">
-            <button type="button" className="btn btn-quiet btn-block" disabled={busy} onClick={() => run(() => api.setOrderPayment(order.id, other), `Changed to ${other}`)}>
-              Change to {other}
-            </button>
-            {confirming ? (
-              <button type="button" className="btn btn-danger btn-block" disabled={busy} onClick={() => run(() => api.deleteOrder(order.id), 'Order deleted')}>
-                Yes, delete this order
+          {order.source === 'summary' ? (
+            <div className="sheet-actions">
+              <p className="meta">This was typed in as the day's total on Past days. Change or remove it there.</p>
+              <Link to={`/past?day=${dayOf}`} className="btn btn-quiet btn-block">
+                Edit in Past days
+              </Link>
+            </div>
+          ) : (
+            <div className="sheet-actions">
+              <button type="button" className="btn btn-quiet btn-block" disabled={busy} onClick={() => run(() => api.setOrderPayment(order.id, other), `Changed to ${other}`)}>
+                Change to {other}
               </button>
-            ) : (
-              <button type="button" className="btn btn-danger-quiet btn-block" onClick={() => setConfirming(true)}>
-                Delete order
-              </button>
-            )}
-          </div>
+              {confirming ? (
+                <button type="button" className="btn btn-danger btn-block" disabled={busy} onClick={() => run(() => api.deleteOrder(order.id), 'Order deleted')}>
+                  Yes, delete this order
+                </button>
+              ) : (
+                <button type="button" className="btn btn-danger-quiet btn-block" onClick={() => setConfirming(true)}>
+                  Delete order
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
     </Sheet>
