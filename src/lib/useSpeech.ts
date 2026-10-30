@@ -35,13 +35,22 @@ function recognitionCtor(): RecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/** iPhone and iPad, in any browser: they all run Apple's WebKit underneath. */
+export const IS_IOS =
+  typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
 const ERRORS: Record<string, string> = {
   'not-allowed': 'Allow the microphone for this site to order by voice',
-  'service-not-allowed': 'Allow the microphone for this site to order by voice',
+  'service-not-allowed': 'Allow the microphone and speech recognition for this site',
   'no-speech': "Didn't hear anything. Tap the mic and speak",
-  'audio-capture': 'No microphone found',
+  'audio-capture': 'The microphone is busy. Tap the mic again',
   network: 'Voice orders need an internet connection',
 };
+
+// Stop listening this long after the words stop changing; iPhone often never ends a phrase by itself
+const SILENCE_MS = 1400;
+// Give up on a listen that never finishes, so the mic button never stays stuck
+const MAX_LISTEN_MS = 12_000;
 
 /** Listens for one phrase and hands back the recogniser's guesses, best first. */
 export function useSpeech(onPhrase: (alternatives: string[]) => void) {
@@ -53,54 +62,144 @@ export function useSpeech(onPhrase: (alternatives: string[]) => void) {
   const handler = useRef(onPhrase);
   handler.current = onPhrase;
 
-  useEffect(() => () => rec.current?.abort(), []);
+  const detach = (r: Recognition) => {
+    r.onresult = null;
+    r.onerror = null;
+    r.onend = null;
+    try {
+      r.abort();
+    } catch {
+      // Already stopped
+    }
+  };
+
+  useEffect(
+    () => () => {
+      if (rec.current) detach(rec.current);
+    },
+    [],
+  );
 
   const start = useCallback(() => {
     const Ctor = recognitionCtor();
     if (!Ctor) return;
-    rec.current?.abort();
+    // A spoken reply still playing holds the audio and blocks the microphone
+    window.speechSynthesis?.cancel();
+    // Each tap gets a fresh recogniser; the old one must not report into the new listen
+    if (rec.current) detach(rec.current);
+
     const r = new Ctor();
     r.lang = 'en-IN';
     r.interimResults = true;
     r.maxAlternatives = 3;
     r.continuous = false;
-    r.onresult = (e) => {
-      let text = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const result = e.results[i];
-        if (result.isFinal) {
-          const guesses = Array.from({ length: result.length }, (_, k) => result[k].transcript.trim()).filter(Boolean);
-          setInterim(guesses[0] ?? '');
-          if (guesses.length) handler.current(guesses);
+    rec.current = r;
+
+    let delivered = false;
+    let failed = false;
+    let lastText = '';
+    let silence: number | undefined;
+    const current = () => rec.current === r;
+
+    const finish = () => {
+      window.clearTimeout(silence);
+      window.clearTimeout(watchdog);
+      if (!current()) return;
+      rec.current = null;
+      setListening(false);
+      // iPhone may end without marking the phrase final: use what it heard
+      if (!delivered && !failed) {
+        if (lastText) {
+          delivered = true;
+          handler.current([lastText]);
         } else {
-          text += result[0].transcript;
+          setError("Didn't catch that. Tap the mic and speak");
         }
       }
-      if (text) setInterim(text);
+    };
+
+    const watchdog = window.setTimeout(() => {
+      if (!current()) return;
+      detach(r);
+      finish();
+    }, MAX_LISTEN_MS);
+
+    r.onresult = (e) => {
+      if (!current() || delivered) return;
+      let text = '';
+      for (let i = 0; i < e.results.length; i++) {
+        const result = e.results[i];
+        if (result.isFinal && i >= e.resultIndex) {
+          const guesses = Array.from({ length: result.length }, (_, k) => result[k].transcript.trim()).filter(Boolean);
+          if (guesses.length) {
+            delivered = true;
+            setInterim(guesses[0]);
+            handler.current(guesses);
+            try {
+              r.stop();
+            } catch {
+              // Already stopping
+            }
+            return;
+          }
+        }
+        text += result[0]?.transcript ?? '';
+      }
+      lastText = text.trim();
+      if (lastText) setInterim(lastText);
+      window.clearTimeout(silence);
+      silence = window.setTimeout(() => {
+        if (!current()) return;
+        try {
+          r.stop();
+        } catch {
+          finish();
+        }
+      }, SILENCE_MS);
     };
     r.onerror = (e) => {
-      if (e.error !== 'aborted') setError(ERRORS[e.error] ?? 'Voice input stopped. Tap the mic to try again');
+      if (!current() || e.error === 'aborted') return;
+      // Words already heard still count even if the recogniser complains afterwards
+      if (lastText && e.error === 'no-speech') return;
+      failed = true;
+      setError(ERRORS[e.error] ?? 'Voice input stopped. Tap the mic to try again');
     };
-    r.onend = () => setListening(false);
-    rec.current = r;
+    r.onend = finish;
+
     setError('');
     setInterim('');
     setListening(true);
     try {
       r.start();
     } catch {
+      failed = true;
+      setError('The microphone is busy. Tap the mic again');
+      finish();
+    }
+  }, []);
+
+  const stop = useCallback(() => {
+    const r = rec.current;
+    if (!r) return setListening(false);
+    try {
+      r.stop();
+    } catch {
+      detach(r);
+      rec.current = null;
       setListening(false);
     }
   }, []);
 
-  const stop = useCallback(() => rec.current?.stop(), []);
-
   return { supported, listening, interim, error, start, stop };
 }
 
-/** Says a short message out loud, for when hands are busy at the stall. */
+/**
+ * Says a short message out loud, for when hands are busy at the stall.
+ * Not on iPhone: once a page has spoken there, iOS keeps the audio for the
+ * speaker and the microphone stops working until the app is reopened.
+ */
 export function say(message: string): void {
-  if (!('speechSynthesis' in window)) return;
+  if (IS_IOS || !('speechSynthesis' in window)) return;
   const u = new SpeechSynthesisUtterance(message);
   u.lang = 'en-IN';
   u.rate = 1.05;
