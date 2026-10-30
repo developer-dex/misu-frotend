@@ -1540,6 +1540,89 @@ button:disabled {
   color: var(--data-strong);
 }
 
+/* ---------- Voice orders and stock alerts ---------- */
+.voice-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 8px 12px 8px 8px;
+  border: 1px dashed var(--line-control);
+  border-radius: 12px;
+}
+
+.voice-bar.is-listening {
+  border-style: solid;
+  border-color: var(--brand);
+  background: var(--surface-2);
+}
+
+.voice-btn {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.voice-btn:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+.voice-btn:disabled {
+  opacity: 0.5;
+}
+
+.voice-bar.is-listening .voice-btn {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.voice-text {
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.voice-text.is-bad {
+  color: var(--negative);
+}
+
+.flavour-left {
+  font-weight: 600;
+}
+
+.flavour-left.is-low {
+  color: var(--notice-ink);
+}
+
+.stock-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--negative);
+  border-radius: var(--r-ctl);
+  background: var(--negative-tint);
+  color: var(--negative);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.stock-alert p {
+  flex: 1;
+  min-width: 0;
+}
+
+.stock-alert .icon-btn {
+  flex: none;
+  color: var(--negative);
+}
+
 /* ---------- Past days ---------- */
 .past-list {
   margin: 0 -8px;
