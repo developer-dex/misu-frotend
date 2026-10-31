@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
-import { BarList, DailyBars } from '../components/charts';
+import { BarList, DailyBars, RunningTotals } from '../components/charts';
 import { Empty, LoadError, Panel, Spinner } from '../components/ui';
 import { addDays, dayMonth, duration, inr, monthRange, num, plural, shiftMonth, shortDay, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
@@ -156,6 +156,8 @@ function ReportBody({ r, loading }: { r: Report; loading: boolean }) {
           </Panel>
         )}
 
+        <BuySellPanel r={r} />
+
         <Panel title="Flavours" id="flavours">
           {t.units === 0 ? (
             <Empty>Nothing sold in these dates.</Empty>
@@ -214,6 +216,95 @@ function ReportBody({ r, loading }: { r: Report; loading: boolean }) {
         </Panel>
       </div>
     </div>
+  );
+}
+
+function signedInr(n: number): string {
+  return n < 0 ? `−${inr(-n)}` : inr(n);
+}
+
+/** What was spent on purchases set against what was sold, in the same dates. */
+function BuySellPanel({ r }: { r: Report }) {
+  const t = r.totals;
+  const gap = t.net - t.spend;
+  const multiDay = r.days.length > 1;
+
+  let finding = 'No sales or purchases in these dates.';
+  if (t.spend === 0 && t.net > 0) finding = `No purchases in these dates, so all ${inr(t.net)} of takings is ahead of spending.`;
+  else if (t.net === 0 && t.spend > 0) finding = `${inr(t.spend)} spent on purchases and nothing sold yet in these dates.`;
+  else if (gap >= 0 && t.spend > 0) finding = `For every ₹100 spent on purchases, you took ₹${num(Math.round((t.net / t.spend) * 100))} in sales.`;
+  else if (gap < 0) finding = `You spent ${inr(-gap)} more on purchases than you sold. Often a stock-up that later days sell through.`;
+
+  // Running totals, so a stock-up on one day can be set against the sales of the days after it
+  const sold: number[] = [];
+  const bought: number[] = [];
+  r.days.forEach((d, i) => {
+    sold.push((sold[i - 1] ?? 0) + d.net);
+    bought.push((bought[i - 1] ?? 0) + d.spend);
+  });
+
+  return (
+    <Panel title="Purchases vs sales" id="buy-sell" className="span-3">
+      <p className="compare-finding">{finding}</p>
+
+      <dl className="kpi-strip is-flat">
+        <div>
+          <dt>Sold</dt>
+          <dd>{inr(t.net)}</dd>
+          <dd className="kpi-sub">{plural(t.units, 'tiramisu', 'tiramisu')}</dd>
+        </div>
+        <div>
+          <dt>Spent on purchases</dt>
+          <dd>{inr(t.spend)}</dd>
+          <dd className="kpi-sub">{t.net > 0 && t.spend > 0 ? `${Math.round((t.spend / t.net) * 100)}% of takings` : '–'}</dd>
+        </div>
+        <div>
+          <dt>Sold minus spent</dt>
+          <dd className={gap < 0 ? 'is-bad' : gap > 0 ? 'is-good' : ''}>{signedInr(gap)}</dd>
+          <dd className="kpi-sub">{gap < 0 ? 'Spent more than sold' : gap > 0 ? 'Sold more than spent' : 'Even'}</dd>
+        </div>
+        <div>
+          <dt>Spent per tiramisu sold</dt>
+          <dd>{t.units > 0 && t.spend > 0 ? inr(Math.round((t.spend / t.units) * 100) / 100) : <span className="dash">–</span>}</dd>
+          <dd className="kpi-sub">{t.units > 0 ? `Sold at ${inr(Math.round((t.net / t.units) * 100) / 100)} each` : '–'}</dd>
+        </div>
+      </dl>
+
+      {multiDay && (t.net > 0 || t.spend > 0) && (
+        <RunningTotals
+          label="Running totals of sales and purchases by day"
+          format={inr}
+          axisFormat={axisInr}
+          days={r.days.map((d) => ({
+            day: d.day,
+            tick: r.days.length > 10 ? dayMonth(d.day).split(' ')[0] : shortDay(d.day).split(',')[0],
+            detail: shortDay(d.day),
+          }))}
+          series={[
+            { id: 'sold', label: 'Sold so far', className: 'series-sold', values: sold },
+            { id: 'bought', label: 'Spent so far', className: 'series-bought', values: bought },
+          ]}
+          describe={(i) => {
+            const diff = sold[i] - bought[i];
+            return diff >= 0 ? `${inr(diff)} ahead` : `${inr(-diff)} behind`;
+          }}
+        />
+      )}
+
+      {r.spendByItem.length > 0 && t.units > 0 && (
+        <div className="compare-items">
+          <h3 className="sheet-subhead">Each purchase item against what you sold</h3>
+          <BarList
+            rows={r.spendByItem.map((s) => ({
+              label: s.item,
+              value: s.amount,
+              sub: `${inr(Math.round((s.amount / t.units) * 100) / 100)} per tiramisu${t.net > 0 ? ` · ${Math.round((s.amount / t.net) * 100)}% of takings` : ''}`,
+            }))}
+            format={inr}
+          />
+        </div>
+      )}
+    </Panel>
   );
 }
 

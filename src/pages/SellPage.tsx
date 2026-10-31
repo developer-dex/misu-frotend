@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Banknote, CalendarDays, Check, Mic, Pause, Play, Smartphone, Square, X } from 'lucide-react';
+import { AlertTriangle, Banknote, CalendarDays, Check, Pause, Play, Smartphone, X } from 'lucide-react';
 import { api } from '../api';
 import { SellTabs } from '../components/SellTabs';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, MoneyInput, Panel, Sheet, Spinner, Stepper, toAmount } from '../components/ui';
 import { clockTime, duration, inr, longDay, num, plural, shortDay, stopwatch, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
-import { say, useSpeech } from '../lib/useSpeech';
-import { bestVoiceOrder } from '../lib/voiceOrder';
 import type { DayView, Order, Payment, Product } from '../types';
 
 function useNow(active: boolean): number {
@@ -231,7 +229,7 @@ function alertText(name: string, left: number): string {
 
 /**
  * Warns when a flavour runs low or sells out (needs "made" set for the day).
- * The banner shows while it is true; sound and vibration only when it changes.
+ * The banner shows while it is true; the phone vibrates only when it changes.
  */
 function StockAlerts({ view }: { view: DayView }) {
   const lastLeft = useRef(new Map<string, number>());
@@ -241,7 +239,7 @@ function StockAlerts({ view }: { view: DayView }) {
   const signature = low.map((x) => `${x.p.productId}:${x.left}`).join(',');
 
   useEffect(() => {
-    const news: string[] = [];
+    let dropped = false;
     for (const p of view.byProduct) {
       const left = leftOf(p);
       const key = `${view.day}:${p.productId}`;
@@ -251,13 +249,10 @@ function StockAlerts({ view }: { view: DayView }) {
         continue;
       }
       // Only a sale that brings the count down announces; opening the day or editing "made" does not
-      if (before !== undefined && left < before && left <= LOW_LEFT && !(before < 0)) news.push(alertText(p.name, left));
+      if (before !== undefined && left < before && left <= LOW_LEFT && !(before < 0)) dropped = true;
       lastLeft.current.set(key, left);
     }
-    if (news.length > 0) {
-      navigator.vibrate?.([200, 100, 200]);
-      say(news.join('. '));
-    }
+    if (dropped) navigator.vibrate?.([200, 100, 200]);
   }, [view]);
 
   if (low.length === 0 || dismissed === signature) return null;
@@ -272,8 +267,6 @@ function StockAlerts({ view }: { view: DayView }) {
     </div>
   );
 }
-
-type OrderDraft = { qty: Record<string, number>; discount: number; payment: Payment };
 
 function OrderForm({
   day,
@@ -292,7 +285,6 @@ function OrderForm({
   const [discount, setDiscount] = useState('');
   const [payment, setPayment] = useState<Payment | null>(null);
   const [saving, setSaving] = useState(false);
-  const [voiceNote, setVoiceNote] = useState('');
 
   const lines = products.filter((p) => (qty[p.id] ?? 0) > 0);
   const units = lines.reduce((s, p) => s + qty[p.id], 0);
@@ -313,23 +305,19 @@ function OrderForm({
     setPayment(null);
   };
 
-  const place = async (order: OrderDraft, spoken: boolean) => {
-    const picked = products.filter((p) => (order.qty[p.id] ?? 0) > 0);
-    const count = picked.reduce((s, p) => s + order.qty[p.id], 0);
-    const amount = picked.reduce((s, p) => s + p.price * order.qty[p.id], 0) - order.discount;
-    const label = picked.map((p) => `${order.qty[p.id]} ${p.name}`).join(', ');
+  const submit = async () => {
+    if (!ready || !payment) return;
     setSaving(true);
     try {
       const res = await api.addOrder({
         day,
-        items: picked.map((p) => ({ productId: p.id, qty: order.qty[p.id] })),
-        discount: order.discount,
-        payment: order.payment,
+        items: lines.map((p) => ({ productId: p.id, qty: qty[p.id] })),
+        discount: discountAmount,
+        payment,
       });
       onSaved(res.day);
       reset();
-      if (spoken) say(`Saved. ${label}, ${order.payment}.`);
-      toast(`Saved ${spoken ? label : plural(count, 'tiramisu', 'tiramisu')} · ${inr(amount)} ${order.payment}`, {
+      toast(`Saved ${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment}`, {
         action: {
           label: 'Undo',
           run: async () => {
@@ -342,93 +330,16 @@ function OrderForm({
         },
       });
     } catch (err) {
-      if (spoken) say('The order was not saved');
       toast((err as Error).message, { tone: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
-  const submit = () => {
-    if (!ready || !payment) return;
-    void place({ qty, discount: discountAmount, payment }, false);
-  };
-
-  // A spoken order fills the form; when it names a flavour and the payment it is saved at once (with Undo)
-  const onVoice = (guesses: string[]) => {
-    const heard = bestVoiceOrder(guesses, products.map((p) => ({ id: p.id, name: p.name })));
-    const named = Object.keys(heard.items).length > 0;
-    if (!named && units === 0) {
-      setVoiceNote(`Heard “${heard.heard}” but no flavour. Try “1 Classic, cash”.`);
-      say("Sorry, which flavour?");
-      return;
-    }
-    // Saying only "cash" or "online" completes the order already in the form
-    const nextQty = named ? heard.items : qty;
-    const nextPayment = heard.payment ?? payment;
-    const nextDiscount = heard.discount > 0 ? heard.discount : named ? 0 : discountAmount;
-    setQty(nextQty);
-    setPayment(nextPayment);
-    setDiscount(nextDiscount > 0 ? String(nextDiscount) : '');
-
-    const nextSubtotal = products.reduce((s, p) => s + p.price * (nextQty[p.id] ?? 0), 0);
-    if (nextDiscount > nextSubtotal) {
-      setVoiceNote(`Heard “${heard.heard}”. The discount is more than the order.`);
-      say('The discount is more than the order');
-      return;
-    }
-    if (!nextPayment) {
-      setVoiceNote(`Heard “${heard.heard}”. Now say or tap cash or online.`);
-      say('Cash or online?');
-      return;
-    }
-    setVoiceNote(`Heard “${heard.heard}”`);
-    void place({ qty: nextQty, discount: nextDiscount, payment: nextPayment }, true);
-  };
-
-  const voice = useSpeech(onVoice);
   const leftById = new Map(stock.map((p) => [p.productId, leftOf(p)]));
 
   return (
-    <Panel
-      title="New order"
-      id="order"
-      aside={
-        units > 0 ? (
-          <button
-            type="button"
-            className="link-btn"
-            onClick={() => {
-              reset();
-              setVoiceNote('');
-            }}
-          >
-            Clear
-          </button>
-        ) : null
-      }
-    >
-      {voice.supported && (
-        <div className={`voice-bar ${voice.listening ? 'is-listening' : ''}`}>
-          <button
-            type="button"
-            className="voice-btn"
-            onClick={voice.listening ? voice.stop : voice.start}
-            disabled={saving}
-            aria-pressed={voice.listening}
-            aria-label={voice.listening ? 'Stop listening' : 'Say the order'}
-          >
-            {voice.listening ? <Square size={18} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
-          </button>
-          <p className={`voice-text ${voice.error ? 'is-bad' : ''}`} aria-live="polite">
-            {voice.error ||
-              (voice.listening
-                ? voice.interim || 'Listening… e.g. “1 Classic, cash”'
-                : voiceNote || 'Tap the mic and say the order, e.g. “2 Classic and 1 Biscoff, online”')}
-          </p>
-        </div>
-      )}
-
+    <Panel title="New order" id="order" aside={units > 0 ? <button type="button" className="link-btn" onClick={reset}>Clear</button> : null}>
       <ul className="flavour-list">
         {products.map((p) => {
           const n = qty[p.id] ?? 0;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 /** Horizontal bars, one hue, value at the right. */
 export function BarList({ rows, format }: { rows: { label: string; value: number; sub?: string }[]; format: (n: number) => string }) {
@@ -105,6 +105,113 @@ export function DailyBars({
                 </g>
               );
             })}
+          </svg>
+        )}
+      </div>
+    </figure>
+  );
+}
+
+/**
+ * Running totals over the days, one line per series on one rupee axis, so two
+ * amounts that land on different days (a stock-up, then sales) can be compared.
+ * Tap or hover a day to read both totals there.
+ */
+export function RunningTotals({
+  days,
+  series,
+  format,
+  axisFormat,
+  label,
+  describe,
+}: {
+  days: { day: string; tick: string; detail: string }[];
+  series: { id: string; label: string; className: string; values: number[] }[];
+  format: (n: number) => string;
+  axisFormat: (n: number) => string;
+  label: string;
+  /** Extra words for the tapped day, e.g. how far one total is ahead */
+  describe?: (index: number) => ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState<number | null>(null);
+  const width = useWidth(ref);
+  const height = 220;
+  const left = 48;
+  const right = 10;
+  const bottom = 24;
+  const top = 10;
+  const plotW = Math.max(0, width - left - right);
+  const plotH = height - bottom - top;
+
+  const rawMax = Math.max(0, ...series.flatMap((s) => s.values));
+  const step = niceStep(rawMax / 3);
+  const max = Math.max(step * 3, 1);
+  const ticks = [0, step, step * 2, step * 3];
+  const slot = plotW / Math.max(1, days.length);
+  const xAt = (i: number) => left + slot * (i + 0.5);
+  const yAt = (v: number) => top + plotH - (v / max) * plotH;
+  const labelEvery = Math.ceil(days.length / Math.max(3, Math.floor(plotW / 64)));
+  const shown = active ?? days.length - 1;
+
+  return (
+    <figure className="running">
+      <figcaption>
+        <ul className="running-legend">
+          {series.map((s) => (
+            <li key={s.id}>
+              <i className={`swatch ${s.className}`} aria-hidden="true" />
+              <span>{s.label}</span>
+              <strong className="num">{format(s.values[shown] ?? 0)}</strong>
+            </li>
+          ))}
+        </ul>
+        <p className="meta running-readout" aria-live="polite">
+          {active === null ? `By ${days[shown]?.detail ?? ''} · tap a day to see it` : days[shown]?.detail}
+          {describe && <> · {describe(shown)}</>}
+        </p>
+      </figcaption>
+      <div ref={ref} className="running-plot">
+        {width > 0 && (
+          <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label} onMouseLeave={() => setActive(null)}>
+            {ticks.map((t) => (
+              <g key={t}>
+                <line x1={left} x2={width - right} y1={yAt(t)} y2={yAt(t)} className="grid" />
+                <text x={left - 8} y={yAt(t) + 4} textAnchor="end" className="tick">
+                  {axisFormat(t)}
+                </text>
+              </g>
+            ))}
+            {days.map((d, i) =>
+              i % labelEvery === 0 ? (
+                <text key={d.day} x={xAt(i)} y={height - 6} textAnchor="middle" className="tick">
+                  {d.tick}
+                </text>
+              ) : null,
+            )}
+            {active !== null && <line x1={xAt(active)} x2={xAt(active)} y1={top} y2={top + plotH} className="crosshair" />}
+            {series.map((s) => (
+              <polyline
+                key={s.id}
+                points={s.values.map((v, i) => `${xAt(i)},${yAt(v)}`).join(' ')}
+                className={`running-line ${s.className}`}
+              />
+            ))}
+            {series.map((s) => (
+              <circle key={s.id} cx={xAt(shown)} cy={yAt(s.values[shown] ?? 0)} r={4.5} className={`running-dot ${s.className}`} />
+            ))}
+            {days.map((d, i) => (
+              <rect
+                key={d.day}
+                x={left + slot * i}
+                y={top}
+                width={slot}
+                height={plotH + bottom}
+                className="hit"
+                onMouseEnter={() => setActive(i)}
+                onClick={() => setActive(i)}
+              />
+            ))}
           </svg>
         )}
       </div>

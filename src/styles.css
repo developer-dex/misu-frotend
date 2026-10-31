@@ -1540,58 +1540,7 @@ button:disabled {
   color: var(--data-strong);
 }
 
-/* ---------- Voice orders and stock alerts ---------- */
-.voice-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-  padding: 8px 12px 8px 8px;
-  border: 1px dashed var(--line-control);
-  border-radius: 12px;
-}
-
-.voice-bar.is-listening {
-  border-style: solid;
-  border-color: var(--brand);
-  background: var(--surface-2);
-}
-
-.voice-btn {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--brand);
-  color: var(--on-brand);
-}
-
-.voice-btn:hover:not(:disabled) {
-  background: var(--brand-hover);
-}
-
-.voice-btn:disabled {
-  opacity: 0.5;
-}
-
-.voice-bar.is-listening .voice-btn {
-  animation: pulse 1.2s ease-in-out infinite;
-}
-
-.voice-text {
-  min-width: 0;
-  color: var(--ink-2);
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.voice-text.is-bad {
-  color: var(--negative);
-}
-
+/* ---------- Stock alerts ---------- */
 .flavour-left {
   font-weight: 600;
 }
@@ -1775,6 +1724,114 @@ button:disabled {
 }
 
 /* ---------- Reports ---------- */
+/* Purchases vs sales: two series, validated for colour-blind separation on white */
+.series-sold {
+  --series: #b8632a;
+}
+
+.series-bought {
+  --series: #2a78d6;
+}
+
+.swatch.series-sold,
+.swatch.series-bought {
+  background: var(--series);
+}
+
+.compare-finding {
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.kpi-strip.is-flat {
+  margin: 0 -20px 18px;
+  border: 0;
+  border-top: 1px solid var(--line-row);
+  border-bottom: 1px solid var(--line-row);
+  border-radius: 0;
+  background: none;
+}
+
+.running-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+.running-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.running-legend strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.running-readout {
+  min-height: 20px;
+  margin: 4px 0 8px;
+}
+
+.running-plot {
+  width: 100%;
+  height: 220px;
+}
+
+.running svg {
+  display: block;
+  overflow: visible;
+}
+
+.running .grid {
+  stroke: var(--line-row);
+  stroke-dasharray: 3 3;
+}
+
+.running .tick {
+  fill: var(--ink-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.running .crosshair {
+  stroke: var(--line-control);
+  stroke-width: 1;
+}
+
+.running-line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.running-dot {
+  fill: var(--series);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.running .hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.compare-items {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-row);
+}
+
+.compare-items .sheet-subhead {
+  margin-bottom: 12px;
+}
+
 .range-bar {
   display: flex;
   flex-wrap: wrap;
@@ -2296,6 +2353,10 @@ button:disabled {
     border-top: 1px solid var(--line);
   }
 
+  .kpi-strip.is-flat {
+    margin: 0 -20px 16px;
+  }
+
   .kpi-strip dd {
     font-size: 20px;
   }
@@ -2349,6 +2410,10 @@ button:disabled {
 @media (max-width: 520px) {
   .panel {
     padding: 16px;
+  }
+
+  .kpi-strip.is-flat {
+    margin: 0 -16px 16px;
   }
 
   .clock-time {
