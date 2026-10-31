@@ -150,7 +150,9 @@ function DayEntryForm({ entry, onDone }: { entry: DayEntry; onDone: () => void }
   const [error, setError] = useState('');
 
   const products = entry.products;
-  const priceOf = (id: string) => products.find((p) => p.productId === id)?.price ?? 0;
+  // What each flavour sold for on this day; starts at the saved price, else today's menu price
+  const [prices, setPrices] = useState<Record<string, string>>(() => Object.fromEntries(products.map((p) => [p.productId, String(p.price)])));
+  const priceOf = (id: string) => toAmount(prices[id] ?? '');
 
   const sum = (payment: Payment) => {
     const lines = toLines(counts[payment]);
@@ -167,7 +169,9 @@ function DayEntryForm({ entry, onDone }: { entry: DayEntry; onDone: () => void }
   const hoursMs = opened && closed ? Date.parse(instant(overnight ? addDays(entry.day, 1) : entry.day, closed)) - Date.parse(instant(entry.day, opened)) : 0;
 
   let problem = '';
+  const unpriced = products.find((p) => priceOf(p.productId) <= 0 && ((counts.cash[p.productId] ?? 0) > 0 || (counts.online[p.productId] ?? 0) > 0));
   if (units === 0) problem = 'Add how many tiramisu you sold';
+  else if (unpriced) problem = `Enter the price ${unpriced.name} sold at`;
   else if (cash.tooBig) problem = 'The cash discount is more than the cash sales';
   else if (online.tooBig) problem = 'The online discount is more than the online sales';
   else if ((opened === '') !== (closed === '')) problem = 'Enter both times, or leave both empty';
@@ -183,6 +187,7 @@ function DayEntryForm({ entry, onDone }: { entry: DayEntry; onDone: () => void }
         cash: { items: cash.lines, discount: cash.discount },
         online: { items: online.lines, discount: online.discount },
         prepared: showMade ? toLines(made) : null,
+        prices: products.filter((p) => priceOf(p.productId) > 0).map((p) => ({ productId: p.productId, price: priceOf(p.productId) })),
       });
       toast(`Saved ${shortDay(entry.day)} · ${plural(units, 'tiramisu', 'tiramisu')} · ${inr(cash.net + online.net)}`);
       onDone();
@@ -219,7 +224,7 @@ function DayEntryForm({ entry, onDone }: { entry: DayEntry; onDone: () => void }
             <li key={p.productId} className={n > 0 ? 'is-picked' : ''}>
               <span className="flavour-name">
                 <strong>{p.name}</strong>
-                <span>{inr(p.price)}</span>
+                <span>{inr(priceOf(p.productId))}</span>
               </span>
               <Stepper
                 value={n}
@@ -248,6 +253,40 @@ function DayEntryForm({ entry, onDone }: { entry: DayEntry; onDone: () => void }
         </p>
       )}
       {products.length === 0 && <Empty>No flavours yet. Add them in Settings.</Empty>}
+
+      <section className="entry-section" aria-labelledby="entry-prices">
+        <div className="entry-head">
+          <h3 id="entry-prices" className="sheet-subhead">
+            Price on this day
+          </h3>
+          <span className="meta">Change if different</span>
+        </div>
+        <ul className="price-list">
+          {products.map((p) => {
+            const changed = priceOf(p.productId) !== p.menuPrice;
+            return (
+              <li key={p.productId}>
+                <label htmlFor={`entry-price-${p.productId}`}>
+                  <strong>{p.name}</strong>
+                  <span className="meta">
+                    {changed ? (
+                      <>
+                        Menu now {inr(p.menuPrice)} ·{' '}
+                        <button type="button" className="link-btn" onClick={() => setPrices({ ...prices, [p.productId]: String(p.menuPrice) })}>
+                          Use it
+                        </button>
+                      </>
+                    ) : (
+                      'Same as the menu now'
+                    )}
+                  </span>
+                </label>
+                <MoneyInput id={`entry-price-${p.productId}`} value={prices[p.productId] ?? ''} onChange={(v) => setPrices({ ...prices, [p.productId]: v })} />
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       {section('cash', 'Paid in cash', cash)}
       {section('online', 'Paid online', online)}

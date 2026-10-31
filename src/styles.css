@@ -1625,6 +1625,34 @@ button:disabled {
   margin-top: 12px;
 }
 
+.price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.price-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.price-list label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.price-list strong {
+  font-size: 15px;
+}
+
+.price-list .money-input {
+  flex: none;
+  width: 120px;
+}
+
 .entry-form {
   gap: 22px;
 }

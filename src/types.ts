@@ -183,7 +183,8 @@ export interface DayEntry {
   cash: { items: EntryLine[]; discount: number };
   online: { items: EntryLine[]; discount: number };
   prepared: EntryLine[];
-  products: { productId: string; name: string; price: number; active: boolean }[];
+  /** price: what this day sold at (saved before, else today's menu); menuPrice: today's menu */
+  products: { productId: string; name: string; price: number; menuPrice: number; active: boolean }[];
   live: { orderCount: number; units: number; net: number; sessionCount: number };
 }
 
@@ -193,4 +194,5 @@ export interface DayEntryInput {
   cash: { items: EntryLine[]; discount: number };
   online: { items: EntryLine[]; discount: number };
   prepared: EntryLine[] | null;
+  prices: { productId: string; price: number }[];
 }
