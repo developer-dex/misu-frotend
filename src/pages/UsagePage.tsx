@@ -18,8 +18,8 @@ export function UsagePage() {
   const today = todayLocal();
   const [date, setDate] = useState(today);
   const [editing, setEditing] = useState<UsageEntry | null>(null);
-  const usage = useLoad(() => api.usage(date, date), [date]);
-  const stock = useLoad(() => api.stock(), []);
+  const usage = useLoad(() => api.usage(date, date), [date], `usage:${date}`);
+  const stock = useLoad(() => api.stock(), [], 'stock');
 
   const entries = usage.data?.entries ?? [];
   const total = entries.reduce((sum, e) => sum + e.cost, 0);

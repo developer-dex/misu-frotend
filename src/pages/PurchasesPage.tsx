@@ -15,8 +15,8 @@ export function PurchasesPage() {
   const [editing, setEditing] = useState<Purchase | null>(null);
   const range = monthRange(month);
 
-  const ingredients = useLoad(() => api.ingredients(), []);
-  const purchases = useLoad(() => api.purchases(range.from, range.to), [month]);
+  const ingredients = useLoad(() => api.ingredients(), [], 'ingredients');
+  const purchases = useLoad(() => api.purchases(range.from, range.to), [month], `purchases:${month}`);
 
   const list = purchases.data ?? [];
   const total = list.reduce((s, p) => s + p.amount, 0);

@@ -1540,6 +1540,21 @@ button:disabled {
   color: var(--data-strong);
 }
 
+/* ---------- Refresh ---------- */
+.btn-sm {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.refresh-btn {
+  gap: 6px;
+}
+
+.is-spinning {
+  animation: spin 0.9s linear infinite;
+}
+
 /* ---------- Stock alerts ---------- */
 .flavour-left {
   font-weight: 600;

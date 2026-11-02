@@ -45,7 +45,7 @@ export function PastDaysPage() {
   const openDay = params.get('day');
 
   const from = addDays(yesterday, -(PAGE_DAYS * pages - 1));
-  const report = useLoad(() => api.report(from, yesterday), [from, yesterday]);
+  const report = useLoad(() => api.report(from, yesterday), [from, yesterday], `report:${from}:${yesterday}`);
   const days = [...(report.data?.days ?? [])].reverse();
 
   const open = (day: string) => setParams({ day });
@@ -125,7 +125,7 @@ function PastDayRow({ day: d, onOpen }: { day: ReportDay; onOpen: () => void }) 
 }
 
 function DayEntrySheet({ day, onDone }: { day: string; onDone: () => void }) {
-  const entry = useLoad(() => api.dayEntry(day), [day]);
+  const entry = useLoad(() => api.dayEntry(day), [day], `entry:${day}`);
   if (entry.error && !entry.data) return <LoadError message={entry.error} onRetry={entry.reload} />;
   if (!entry.data) return <Spinner />;
   return <DayEntryForm entry={entry.data} onDone={onDone} />;

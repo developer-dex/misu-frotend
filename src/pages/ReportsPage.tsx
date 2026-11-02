@@ -44,7 +44,7 @@ export function ReportsPage() {
   const [preset, setPreset] = useState<Preset>('week');
   const [custom, setCustom] = useState({ from: addDays(todayLocal(), -29), to: todayLocal() });
   const range = rangeFor(preset, custom);
-  const report = useLoad(() => api.report(range.from, range.to), [range.from, range.to]);
+  const report = useLoad(() => api.report(range.from, range.to), [range.from, range.to], `report:${range.from}:${range.to}`);
   const r = report.data;
 
   return (

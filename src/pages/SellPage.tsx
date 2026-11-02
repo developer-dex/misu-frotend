@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Banknote, CalendarDays, Check, Pause, Play, Smartphone, X } from 'lucide-react';
+import { AlertTriangle, Banknote, CalendarDays, Check, Pause, Play, RefreshCw, Smartphone, X } from 'lucide-react';
 import { api } from '../api';
 import { SellTabs } from '../components/SellTabs';
 import { useToast } from '../components/Toast';
@@ -32,8 +32,8 @@ export function SellPage() {
   // null = follow today (or the day whose clock is still running)
   const [pickedDay, setPickedDay] = useState<string | null>(null);
 
-  const products = useLoad(() => api.products(), []);
-  const day = useLoad(() => (pickedDay ? api.day(pickedDay) : api.currentDay(todayLocal())), [pickedDay]);
+  const products = useLoad(() => api.products(), [], 'products');
+  const day = useLoad(() => (pickedDay ? api.day(pickedDay) : api.currentDay(todayLocal())), [pickedDay], `day:${pickedDay ?? `current:${todayLocal()}`}`);
   const view = day.data;
 
   // When the app comes back to the front (e.g. opened again in the evening), move to the new day
@@ -79,6 +79,15 @@ export function SellPage() {
 
       <SellTabs />
 
+      {day.error && (
+        <p className="notice" role="alert">
+          Could not refresh: {day.error} Showing what was loaded last.{' '}
+          <button type="button" className="link-btn" onClick={() => void day.reload()}>
+            Try again
+          </button>
+        </p>
+      )}
+
       {view.day !== today && !view.running && (
         <p className="notice">
           You are adding orders to {longDay(view.day)}. Only have the day's totals?{' '}
@@ -96,12 +105,12 @@ export function SellPage() {
       <div className="sell-grid">
         <div className="sell-main">
           <ShiftClock view={view} isPast={view.day < today} onChange={setView} />
-          <OrderForm day={view.day} products={activeProducts} stock={view.byProduct} onSaved={setView} toast={toast} />
+          <OrderForm day={view.day} products={activeProducts} stock={view.byProduct} onSaved={setView} onRefresh={day.reload} toast={toast} />
         </div>
         <div className="sell-side">
           <TakingsPanel view={view} />
           <StockPanel view={view} products={activeProducts} onChange={setView} />
-          <OrdersPanel view={view} onChange={setView} />
+          <OrdersPanel view={view} onChange={setView} onRefresh={day.reload} refreshing={day.loading} />
         </div>
       </div>
     </div>
@@ -273,18 +282,21 @@ function OrderForm({
   products,
   stock,
   onSaved,
+  onRefresh,
   toast,
 }: {
   day: string;
   products: Product[];
   stock: DayView['byProduct'];
   onSaved: (v: DayView) => void;
+  onRefresh: () => void;
   toast: ReturnType<typeof useToast>;
 }) {
   const [qty, setQty] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState('');
   const [payment, setPayment] = useState<Payment | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Orders still on their way to the server; the form is free for the next one meanwhile
+  const sending = useRef({ seq: 0, applied: 0, open: 0, skipped: false });
 
   const lines = products.filter((p) => (qty[p.id] ?? 0) > 0);
   const units = lines.reduce((s, p) => s + qty[p.id], 0);
@@ -292,7 +304,7 @@ function OrderForm({
   const discountAmount = toAmount(discount);
   const total = Math.max(0, subtotal - discountAmount);
   const discountTooBig = discountAmount > subtotal && units > 0;
-  const ready = units > 0 && payment !== null && !discountTooBig && !saving;
+  const ready = units > 0 && payment !== null && !discountTooBig;
 
   let hint = '';
   if (units === 0) hint = 'Add a tiramisu to start';
@@ -307,17 +319,25 @@ function OrderForm({
 
   const submit = async () => {
     if (!ready || !payment) return;
-    setSaving(true);
+    const draft = { qty, discount, payment };
+    const items = lines.map((p) => ({ productId: p.id, qty: qty[p.id] }));
+    const label = `${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment}`;
+    const s = sending.current;
+    const id = ++s.seq;
+    s.open++;
+    // Clear the form at once so the next customer can be rung up while this one saves
+    reset();
+    toast(`Saving ${label}…`);
     try {
-      const res = await api.addOrder({
-        day,
-        items: lines.map((p) => ({ productId: p.id, qty: qty[p.id] })),
-        discount: discountAmount,
-        payment,
-      });
-      onSaved(res.day);
-      reset();
-      toast(`Saved ${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment}`, {
+      const res = await api.addOrder({ day, items, discount: discountAmount, payment: draft.payment });
+      // Answers can come back out of order; an older one must not hide a newer order
+      if (id > s.applied) {
+        s.applied = id;
+        onSaved(res.day);
+      } else {
+        s.skipped = true;
+      }
+      toast(`Saved ${label}`, {
         action: {
           label: 'Undo',
           run: async () => {
@@ -330,9 +350,17 @@ function OrderForm({
         },
       });
     } catch (err) {
-      toast((err as Error).message, { tone: 'error' });
+      // Put the order back so nothing is lost
+      setQty(draft.qty);
+      setDiscount(draft.discount);
+      setPayment(draft.payment);
+      toast(`Not saved: ${(err as Error).message}`, { tone: 'error' });
     } finally {
-      setSaving(false);
+      s.open--;
+      if (s.open === 0 && s.skipped) {
+        s.skipped = false;
+        onRefresh();
+      }
     }
   };
 
@@ -407,7 +435,7 @@ function OrderForm({
       </dl>
 
       <button type="button" className="btn btn-primary btn-block btn-lg" disabled={!ready} onClick={submit} aria-describedby="order-hint">
-        {saving ? <Spinner label="Saving" /> : 'Submit order'}
+        Submit order
       </button>
       <p id="order-hint" className="form-hint" aria-live="polite">
         {hint}
@@ -550,10 +578,29 @@ function PreparedSheet({
   );
 }
 
-function OrdersPanel({ view, onChange }: { view: DayView; onChange: (v: DayView) => void }) {
+function OrdersPanel({
+  view,
+  onChange,
+  onRefresh,
+  refreshing,
+}: {
+  view: DayView;
+  onChange: (v: DayView) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
   const [selected, setSelected] = useState<Order | null>(null);
   return (
-    <Panel title="Orders" id="orders" aside={view.orders.length > 0 ? <span className="meta">Newest first</span> : null}>
+    <Panel
+      title="Orders"
+      id="orders"
+      aside={
+        <button type="button" className="btn btn-quiet btn-sm refresh-btn" onClick={onRefresh} disabled={refreshing} aria-label="Refresh orders">
+          <RefreshCw size={16} aria-hidden="true" className={refreshing ? 'is-spinning' : ''} />
+          {refreshing ? 'Refreshing' : 'Refresh'}
+        </button>
+      }
+    >
       {view.orders.length === 0 ? (
         <Empty>No orders yet. Orders you submit show up here.</Empty>
       ) : (

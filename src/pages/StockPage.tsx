@@ -14,7 +14,7 @@ function leftLabel(s: StockItem) {
 }
 
 export function StockPage() {
-  const stock = useLoad(() => api.stock(), []);
+  const stock = useLoad(() => api.stock(), [], 'stock');
   const items = stock.data ?? [];
   const value = items.reduce((sum, s) => sum + s.leftValue, 0);
 

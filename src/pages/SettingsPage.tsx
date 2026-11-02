@@ -36,7 +36,7 @@ export function SettingsPage({ username, onLogout }: { username: string; onLogou
 }
 
 function FlavoursPanel() {
-  const products = useLoad(() => api.products(), []);
+  const products = useLoad(() => api.products(), [], 'products');
   const toast = useToast();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -127,7 +127,7 @@ function FlavourRow({ product, onChange }: { product: Product; onChange: () => v
 }
 
 function ItemsPanel() {
-  const items = useLoad(() => api.ingredients(), []);
+  const items = useLoad(() => api.ingredients(), [], 'ingredients');
   const toast = useToast();
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');

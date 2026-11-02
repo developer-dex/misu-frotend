@@ -36,7 +36,7 @@ export function SessionsPage() {
   const [month, setMonth] = useState(thisMonth);
   const [openId, setOpenId] = useState<string | null>(null);
   const range = monthRange(month);
-  const log = useLoad(() => api.sessions(range.from, range.to), [month]);
+  const log = useLoad(() => api.sessions(range.from, range.to), [month], `sessions:${month}`);
   const data = log.data;
   const now = useNow(Boolean(data?.sessions.some((s) => s.running)));
 

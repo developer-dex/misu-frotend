@@ -1,6 +1,11 @@
 import type { DayEntry, DayEntryInput, DayView, Ingredient, Order, Payment, Product, Purchase, Report, SessionLog, StallSession, StockItem, UsageEntry } from './types';
+import { clearLoadCache } from './lib/useLoad';
 
 const TOKEN_KEY = 'misu.token';
+
+// Set VITE_API_URL (e.g. https://misu-backend.onrender.com) to call the backend directly
+// instead of through the frontend host: one hop less on every request
+const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
 
 export function getToken(): string | null {
   try {
@@ -11,6 +16,8 @@ export function getToken(): string | null {
 }
 
 export function setToken(token: string | null): void {
+  // Another login must not see the last one's remembered screens
+  clearLoadCache();
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
@@ -39,7 +46,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    res = await fetch(`${API_BASE}/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
     throw new ApiError(0, 'No connection. Check your internet and try again.');
   }
