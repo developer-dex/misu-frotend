@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, Banknote, CalendarDays, Check, Pause, Play, RefreshCw, Smartphone, X } from 'lucide-react';
 import { api } from '../api';
 import { SellTabs } from '../components/SellTabs';
@@ -36,14 +36,44 @@ export function SellPage() {
   const day = useLoad(() => (pickedDay ? api.day(pickedDay) : api.currentDay(todayLocal())), [pickedDay], `day:${pickedDay ?? `current:${todayLocal()}`}`);
   const view = day.data;
 
-  // When the app comes back to the front (e.g. opened again in the evening), move to the new day
+  // Every arrival on this screen loads fresh figures: opening it (useLoad does that),
+  // tapping Sell again while here, and coming back to the app or browser tab
+  const { key: visit } = useLocation();
+  const firstVisit = useRef(visit);
+  const reloadAll = useRef(() => {});
+  reloadAll.current = () => {
+    void products.reload();
+    void day.reload();
+  };
+
+  useEffect(() => {
+    if (visit === firstVisit.current) return;
+    firstVisit.current = visit;
+    // A fresh visit starts on today, as it does when coming from another screen
+    if (pickedDay !== null) {
+      void products.reload();
+      setPickedDay(null); // which loads today
+    } else {
+      reloadAll.current();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visit]);
+
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === 'visible' && pickedDay === null) void day.reload();
+      if (document.visibilityState === 'visible') reloadAll.current();
+    };
+    // pageshow covers a phone restoring the page from its back/forward cache
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) reloadAll.current();
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [pickedDay, day.reload]);
+    window.addEventListener('pageshow', onPageShow);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, []);
 
   const setView = day.setData;
 
@@ -68,6 +98,12 @@ export function SellPage() {
           <p className="subtitle">
             {longDay(view.day)}
             {view.day !== today && view.running && ' · clock still running from this day'}
+            {(day.loading || products.loading) && (
+              <span className="sell-refreshing" role="status">
+                <RefreshCw size={13} aria-hidden="true" className="is-spinning" />
+                Updating
+              </span>
+            )}
           </p>
         </div>
         <DayPicker

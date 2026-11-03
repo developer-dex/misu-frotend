@@ -1555,6 +1555,15 @@ button:disabled {
   animation: spin 0.9s linear infinite;
 }
 
+/* Shown beside the date while the Sell screen loads fresh figures */
+.sell-refreshing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
 /* ---------- Stock alerts ---------- */
 .flavour-left {
   font-weight: 600;
