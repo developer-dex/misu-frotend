@@ -122,6 +122,16 @@ export interface ReportDay extends Takings {
   entered: boolean;
 }
 
+/** All sales and all purchases since the first one recorded. */
+export interface AllTime {
+  since: string | null;
+  sold: number;
+  spent: number;
+  profit: number;
+  units: number;
+  orderCount: number;
+}
+
 export interface Report {
   from: string;
   to: string;

@@ -56,6 +56,8 @@ export function ReportsPage() {
         </div>
       </div>
 
+      <TillNow />
+
       <div className="range-bar">
         <div className="segmented" role="tablist" aria-label="Date range">
           {PRESETS.map((p) => (
@@ -98,6 +100,45 @@ export function ReportsPage() {
         <ReportBody r={r} loading={report.loading} />
       )}
     </div>
+  );
+}
+
+/** "1 Oct", or "1 Oct 2025" when it was another year */
+function sinceLabel(day: string): string {
+  return day.slice(0, 4) === todayLocal().slice(0, 4) ? dayMonth(day) : `${dayMonth(day)} ${day.slice(0, 4)}`;
+}
+
+/** The whole business so far, whatever dates are picked below: money in, money out, and what is left. */
+function TillNow() {
+  const all = useLoad(() => api.allTime(), [], 'all-time');
+  const a = all.data;
+
+  return (
+    <Panel title="Till now" id="till-now" className="till-now" aside={a?.since ? <span className="meta">since {sinceLabel(a.since)}</span> : null}>
+      {all.error && !a ? (
+        <LoadError message={all.error} onRetry={all.reload} />
+      ) : !a ? (
+        <Spinner />
+      ) : (
+        <dl className={`till-now-sum ${all.loading ? 'is-loading' : ''}`}>
+          <div>
+            <dt>
+              Sold
+              <span className="meta"> · {plural(a.units, 'tiramisu', 'tiramisu')}</span>
+            </dt>
+            <dd>{inr(a.sold)}</dd>
+          </div>
+          <div>
+            <dt>Spent on purchases</dt>
+            <dd>−{inr(a.spent)}</dd>
+          </div>
+          <div className="till-now-profit">
+            <dt>{a.profit < 0 ? 'Loss' : 'Profit'}</dt>
+            <dd className={a.profit < 0 ? 'is-bad' : a.profit > 0 ? 'is-good' : ''}>{a.profit < 0 ? `−${inr(-a.profit)}` : inr(a.profit)}</dd>
+          </div>
+        </dl>
+      )}
+    </Panel>
   );
 }
 

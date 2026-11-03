@@ -1,4 +1,4 @@
-import type { DayEntry, DayEntryInput, DayView, Ingredient, Order, Payment, Product, Purchase, Report, SessionLog, StallSession, StockItem, UsageEntry } from './types';
+import type { AllTime, DayEntry, DayEntryInput, DayView, Ingredient, Order, Payment, Product, Purchase, Report, SessionLog, StallSession, StockItem, UsageEntry } from './types';
 import { clearLoadCache } from './lib/useLoad';
 
 const TOKEN_KEY = 'misu.token';
@@ -113,4 +113,5 @@ export const api = {
   stock: () => request<StockItem[]>('GET', '/stock'),
 
   report: (from: string, to: string) => request<Report>('GET', `/reports${qs({ from, to })}`),
+  allTime: () => request<AllTime>('GET', '/reports/all-time'),
 };
