@@ -1997,6 +1997,29 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* Cash and online sit under Sold as a breakdown, not as more totals */
+.till-now-sum > .till-now-part {
+  padding: 2px 0 2px 14px;
+  border-top: 0;
+}
+
+.till-now-sum > .till-now-part + .till-now-part {
+  padding-bottom: 10px;
+}
+
+.till-now-part dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.till-now-sum .till-now-part dd {
+  color: var(--ink-2);
+  font-size: 15px;
+  font-weight: 500;
+}
+
 .till-now-sum .till-now-profit {
   border-top: 2px solid var(--line-control);
 }

@@ -128,6 +128,25 @@ function TillNow() {
             </dt>
             <dd>{inr(a.sold)}</dd>
           </div>
+          {/* Where the money came in: the two always add up to Sold. An older server does not send them yet */}
+          {a.cash !== undefined && a.online !== undefined && (
+            <>
+              <div className="till-now-part">
+                <dt>
+                  <i className="swatch swatch-cash" aria-hidden="true" />
+                  Cash
+                </dt>
+                <dd>{inr(a.cash)}</dd>
+              </div>
+              <div className="till-now-part">
+                <dt>
+                  <i className="swatch swatch-online" aria-hidden="true" />
+                  Online
+                </dt>
+                <dd>{inr(a.online)}</dd>
+              </div>
+            </>
+          )}
           <div>
             <dt>Spent on purchases</dt>
             <dd>−{inr(a.spent)}</dd>

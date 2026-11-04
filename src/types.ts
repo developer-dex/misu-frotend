@@ -126,6 +126,8 @@ export interface ReportDay extends Takings {
 export interface AllTime {
   since: string | null;
   sold: number;
+  cash?: number;
+  online?: number;
   spent: number;
   profit: number;
   units: number;
