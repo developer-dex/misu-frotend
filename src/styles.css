@@ -2231,6 +2231,30 @@ button:disabled {
   font-weight: 600;
 }
 
+.settings-title {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* the 40px tap area overlaps the meta line instead of pushing it down */
+  margin: -8px 0;
+}
+
+.settings-title .icon-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.rename-form {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+}
+
+.rename-form .input {
+  flex: 1;
+  min-width: 0;
+}
+
 .settings-controls {
   display: flex;
   align-items: center;

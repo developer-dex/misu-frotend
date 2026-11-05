@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, MoneyInput, Panel, Spinner, toAmount } from '../components/ui';
@@ -83,21 +83,62 @@ function FlavourRow({ product, onChange }: { product: Product; onChange: () => v
   const [price, setPrice] = useState(String(product.price));
   useEffect(() => setPrice(String(product.price)), [product.price]);
   const dirty = toAmount(price) !== product.price;
+  // null while not renaming
+  const [name, setName] = useState<string | null>(null);
 
-  const save = async (body: Partial<Pick<Product, 'price' | 'active'>>, message: string) => {
+  const save = async (body: Partial<Pick<Product, 'name' | 'price' | 'active'>>, message: string) => {
     try {
       await api.updateProduct(product.id, body);
       toast(message);
       onChange();
+      return true;
     } catch (err) {
       toast((err as Error).message, { tone: 'error' });
+      return false;
     }
   };
+
+  const rename = async (e: FormEvent) => {
+    e.preventDefault();
+    const next = (name ?? '').trim();
+    if (!next) return toast('Enter a name', { tone: 'error' });
+    if (next === product.name) return setName(null);
+    if (await save({ name: next }, `${product.name} is now called ${next}`)) setName(null);
+  };
+
+  if (name !== null) {
+    return (
+      <li>
+        <form className="rename-form" onSubmit={rename}>
+          <input
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Escape' && setName(null)}
+            aria-label={`New name for ${product.name}`}
+            maxLength={60}
+            autoFocus
+          />
+          <button type="submit" className="btn btn-primary">
+            Save
+          </button>
+          <button type="button" className="btn btn-quiet" onClick={() => setName(null)}>
+            Cancel
+          </button>
+        </form>
+      </li>
+    );
+  }
 
   return (
     <li className={product.active ? '' : 'is-off'}>
       <div className="settings-name">
-        <strong>{product.name}</strong>
+        <span className="settings-title">
+          <strong>{product.name}</strong>
+          <button type="button" className="icon-btn" onClick={() => setName(product.name)} aria-label={`Rename ${product.name}`} title="Rename">
+            <Pencil size={15} aria-hidden />
+          </button>
+        </span>
         <span className="meta">{product.active ? `On sale at ${inr(product.price)}` : 'Not on sale'}</span>
       </div>
       <form
