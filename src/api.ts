@@ -82,6 +82,7 @@ export const api = {
   day: (day: string) => request<DayView>('GET', `/days/${day}`),
   startSession: (day: string) => request<DayView>('POST', `/days/${day}/session/start`),
   stopSession: (day: string) => request<DayView>('POST', `/days/${day}/session/stop`),
+  setDayOff: (day: string, off: boolean) => request<DayView>('PUT', `/days/${day}/off`, { off }),
   setPrepared: (day: string, items: { productId: string; qty: number }[]) =>
     request<DayView>('PUT', `/days/${day}/prepared`, { items }),
   dayEntry: (day: string) => request<DayEntry>('GET', `/days/${day}/entry`),

@@ -90,6 +90,8 @@ export interface Takings {
 
 export interface DayView {
   day: string;
+  /** The stall stayed closed this day */
+  off: boolean;
   serverTime: string;
   sessions: StallSession[];
   currentSession: StallSession | null;
@@ -120,6 +122,7 @@ export interface ReportDay extends Takings {
   sessionCount: number;
   workedMs: number;
   entered: boolean;
+  off: boolean;
 }
 
 /** All sales and all purchases since the first one recorded. */
@@ -145,6 +148,7 @@ export interface Report {
     profit: number;
     workedMs: number;
     stallDays: number;
+    daysOff: number;
     unitsPerHour: number | null;
   };
   products: { productId: string; name: string; units: number; gross: number }[];
@@ -190,6 +194,7 @@ export interface EntryLine {
 export interface DayEntry {
   day: string;
   exists: boolean;
+  off: boolean;
   opened: string | null;
   closed: string | null;
   cash: { items: EntryLine[]; discount: number };

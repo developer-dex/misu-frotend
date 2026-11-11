@@ -2635,3 +2635,30 @@ button:disabled {
     transition-duration: 1ms !important;
   }
 }
+
+/* ---------- Days off ---------- */
+.pill-off {
+  border: 1px solid var(--line-control);
+  background: none;
+  color: var(--ink-2);
+}
+
+.day-off-offer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px dashed var(--line-control);
+  border-radius: var(--r-ctl);
+}
+
+.day-off-text {
+  color: var(--ink-2);
+  font-size: 15px;
+}
+
+.day-off-text strong {
+  color: var(--ink);
+}

@@ -124,7 +124,9 @@ export function SellPage() {
         </p>
       )}
 
-      {view.day !== today && !view.running && (
+      {view.off && <DayOffNotice view={view} isToday={view.day === today} onChange={setView} />}
+
+      {view.day !== today && !view.running && !view.off && (
         <p className="notice">
           You are adding orders to {longDay(view.day)}. Only have the day's totals?{' '}
           <Link to={`/past?day=${view.day}`} className="link-btn">
@@ -150,6 +152,32 @@ export function SellPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function DayOffNotice({ view, isToday, onChange }: { view: DayView; isToday: boolean; onChange: (v: DayView) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const undo = async () => {
+    setBusy(true);
+    try {
+      onChange(await api.setDayOff(view.day, false));
+      toast(`${shortDay(view.day)} is no longer a day off`);
+    } catch (err) {
+      toast((err as Error).message, { tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <p className="notice day-off-notice">
+      <strong>Day off.</strong> {isToday ? 'Today is' : 'This day is'} marked as closed. Ringing up an order or starting the clock opens it again.{' '}
+      <button type="button" className="link-btn" onClick={undo} disabled={busy}>
+        Undo day off
+      </button>
+    </p>
   );
 }
 
@@ -204,6 +232,20 @@ function ShiftClock({ view, isPast, onChange }: { view: DayView; isPast: boolean
   if (current) status = `Since ${clockTime(current.start)}`;
   else if (last?.end) status = `Last session ended at ${clockTime(last.end)}`;
 
+  // A day with nothing on it yet can be marked as one the stall stays closed
+  const canMarkOff = !view.off && !view.running && view.sessions.length === 0 && view.summary.orderCount === 0;
+  const markOff = async () => {
+    setBusy(true);
+    try {
+      onChange(await api.setDayOff(view.day, true));
+      toast(`${isPast ? shortDay(view.day) : 'Today'} marked as a day off`);
+    } catch (err) {
+      toast((err as Error).message, { tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   let footer: string | null = null;
   if (view.sessions.length > 0) {
     footer = `${isPast ? 'This day' : 'Today'}: ${duration(dayMs)} over ${plural(view.sessions.length, 'session')}`;
@@ -250,7 +292,16 @@ function ShiftClock({ view, isPast, onChange }: { view: DayView; isPast: boolean
         </div>
       </dl>
       <div className="clock-foot">
-        <span className="meta">{footer ?? 'Each Start and Stop is saved in the session log.'}</span>
+        {canMarkOff ? (
+          <span className="meta">
+            {isPast ? 'Stall closed this day?' : 'Not opening today?'}{' '}
+            <button type="button" className="link-btn" onClick={markOff} disabled={busy}>
+              Mark as day off
+            </button>
+          </span>
+        ) : (
+          <span className="meta">{footer ?? 'Each Start and Stop is saved in the session log.'}</span>
+        )}
         <Link to="/sessions" className="link-btn">
           Session log
         </Link>

@@ -174,6 +174,7 @@ function ReportBody({ r, loading }: { r: Report; loading: boolean }) {
     if (t.workedMs > 0) finding += ` in ${duration(t.workedMs)} at the stall`;
     finding += '.';
   }
+  if (t.daysOff > 0) finding += ` ${plural(t.daysOff, 'day')} off.`;
 
   return (
     <div className={`report ${loading ? 'is-loading' : ''}`}>

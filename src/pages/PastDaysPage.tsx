@@ -97,6 +97,7 @@ export function PastDaysPage() {
               close();
               void report.reload();
             }}
+            onChanged={() => void report.reload()}
           />
         )}
       </Sheet>
@@ -113,22 +114,69 @@ function PastDayRow({ day: d, onOpen }: { day: ReportDay; onOpen: () => void }) 
           {shortDay(d.day)}
           {d.entered && <span className="pill pill-online">Day total</span>}
           {recorded && !d.entered && <span className="pill pill-cash">From Sell</span>}
+          {d.off && <span className="pill pill-off">Day off</span>}
         </strong>
         <span className="meta">
-          {recorded ? `${plural(d.units, 'tiramisu', 'tiramisu')} sold` : 'Nothing recorded'}
+          {recorded ? `${plural(d.units, 'tiramisu', 'tiramisu')} sold` : d.off ? 'Stall closed' : 'Nothing recorded'}
           {d.workedMs > 0 && ` · ${duration(d.workedMs)}`}
         </span>
       </span>
-      {recorded ? <span className="purchase-amount">{inr(d.net)}</span> : <span className="past-add">Add</span>}
+      {recorded ? <span className="purchase-amount">{inr(d.net)}</span> : d.off ? null : <span className="past-add">Add</span>}
     </button>
   );
 }
 
-function DayEntrySheet({ day, onDone }: { day: string; onDone: () => void }) {
+function DayEntrySheet({ day, onDone, onChanged }: { day: string; onDone: () => void; onChanged: () => void }) {
   const entry = useLoad(() => api.dayEntry(day), [day], `entry:${day}`);
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
   if (entry.error && !entry.data) return <LoadError message={entry.error} onRetry={entry.reload} />;
   if (!entry.data) return <Spinner />;
-  return <DayEntryForm entry={entry.data} onDone={onDone} />;
+
+  const setOff = async (off: boolean) => {
+    setBusy(true);
+    try {
+      await api.setDayOff(day, off);
+      toast(off ? `${shortDay(day)} marked as a day off` : `${shortDay(day)} is no longer a day off`);
+      if (off) return onDone();
+      onChanged();
+      await entry.reload();
+    } catch (err) {
+      toast((err as Error).message, { tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const e = entry.data;
+  if (e.off) {
+    return (
+      <div className="form day-off">
+        <p className="day-off-text">
+          <strong>Day off.</strong> The stall was closed this day, so it has no sales and Reports count it as a day off.
+        </p>
+        <button type="button" className="btn btn-primary btn-block btn-lg" onClick={() => setOff(false)} disabled={busy}>
+          {busy ? <Spinner label="Saving" /> : 'Undo day off and add sales'}
+        </button>
+      </div>
+    );
+  }
+
+  // Only a day with nothing on it can be a day off
+  const empty = !e.exists && e.live.orderCount === 0 && e.live.sessionCount === 0;
+  return (
+    <>
+      {empty && (
+        <div className="day-off-offer">
+          <span className="meta">Stall closed this day?</span>
+          <button type="button" className="btn btn-quiet btn-sm" onClick={() => setOff(true)} disabled={busy}>
+            Mark as day off
+          </button>
+        </div>
+      )}
+      <DayEntryForm entry={e} onDone={onDone} />
+    </>
+  );
 }
 
 function DayEntryForm({ entry, onDone }: { entry: DayEntry; onDone: () => void }) {
