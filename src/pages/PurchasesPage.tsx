@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Banknote, Check, ChevronLeft, ChevronRight, Smartphone } from 'lucide-react';
 import { api } from '../api';
 import { BarList } from '../components/charts';
 import { IngredientsTabs } from '../components/IngredientsTabs';
@@ -7,7 +7,7 @@ import { useToast } from '../components/Toast';
 import { Empty, Field, LoadError, MoneyInput, Panel, Sheet, Spinner, toAmount } from '../components/ui';
 import { inr, longDay, monthName, monthRange, num, shiftMonth, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
-import type { Ingredient, Purchase } from '../types';
+import type { Ingredient, Payment, Purchase } from '../types';
 
 export function PurchasesPage() {
   const thisMonth = todayLocal().slice(0, 7);
@@ -20,6 +20,8 @@ export function PurchasesPage() {
 
   const list = purchases.data ?? [];
   const total = list.reduce((s, p) => s + p.amount, 0);
+  const paidBy = (payment: Payment | null) => list.filter((p) => p.payment === payment).reduce((s, p) => s + p.amount, 0);
+  const unset = paidBy(null);
 
   const byDate = useMemo(() => {
     const groups = new Map<string, Purchase[]>();
@@ -89,6 +91,12 @@ export function PurchasesPage() {
                   <p className="figure">{purchases.loading && !purchases.data ? <Spinner /> : inr(total)}</p>
                   <p className="meta">spent on {list.length === 1 ? '1 purchase' : `${num(list.length)} purchases`}</p>
                 </div>
+                {list.length > 0 && (
+                  <p className="meta purchase-split">
+                    Cash {inr(paidBy('cash'))} · Online {inr(paidBy('online'))}
+                    {unset > 0 && ` · ${inr(unset)} not marked`}
+                  </p>
+                )}
                 {byItem.length > 0 && <BarList rows={byItem} format={inr} />}
               </>
             )}
@@ -107,7 +115,10 @@ export function PurchasesPage() {
                     <li key={p.id}>
                       <button type="button" className="purchase-row" onClick={() => setEditing(p)}>
                         <span className="purchase-item">
-                          <strong>{p.item}</strong>
+                          <strong>
+                            {p.item}
+                            {p.payment && <span className={`pill pill-${p.payment}`}>{p.payment === 'cash' ? 'Cash' : 'Online'}</span>}
+                          </strong>
                           {(p.quantity !== null || p.note) && (
                             <span className="meta">
                               {p.quantity !== null && `${num(p.quantity)} ${p.unit}`}
@@ -167,6 +178,7 @@ function PurchaseForm({
   const [unit, setUnit] = useState(existing?.unit ?? '');
   const [date, setDate] = useState(existing?.date ?? todayLocal());
   const [note, setNote] = useState(existing?.note ?? '');
+  const [payment, setPayment] = useState<Payment | null>(existing?.payment ?? null);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState('');
@@ -187,6 +199,7 @@ function PurchaseForm({
     setError('');
     if (!item.trim()) return setError('Pick what you bought');
     if (toAmount(amount) <= 0) return setError('Enter the amount you paid');
+    if (!payment) return setError('Choose cash or online');
     setSaving(true);
     const body = {
       date,
@@ -195,6 +208,7 @@ function PurchaseForm({
       quantity: quantity.trim() === '' ? null : Number.parseFloat(quantity),
       unit: unit.trim(),
       note: note.trim(),
+      payment,
     };
     try {
       const saved = existing ? await api.updatePurchase(existing.id, body) : await api.addPurchase(body);
@@ -204,6 +218,7 @@ function PurchaseForm({
         setAmount('');
         setQuantity('');
         setNote('');
+        setPayment(null);
         setCustom(false);
       }
       onSaved(saved);
@@ -277,6 +292,26 @@ function PurchaseForm({
           <input id={`${idp}-date`} className="input" type="date" value={date} max={todayLocal()} onChange={(e) => setDate(e.target.value)} />
         </Field>
       </div>
+
+      <fieldset className="field">
+        <legend>Paid by</legend>
+        <div className="pay-choice" role="radiogroup" aria-label="Paid by">
+          {(['cash', 'online'] as const).map((method) => (
+            <button
+              key={method}
+              type="button"
+              role="radio"
+              aria-checked={payment === method}
+              className={`pay-btn ${payment === method ? 'is-on' : ''}`}
+              onClick={() => setPayment(method)}
+            >
+              {method === 'cash' ? <Banknote size={22} strokeWidth={1.75} aria-hidden="true" /> : <Smartphone size={22} strokeWidth={1.75} aria-hidden="true" />}
+              {method === 'cash' ? 'Cash' : 'Online'}
+              {payment === method && <Check size={18} className="pay-check" aria-hidden="true" />}
+            </button>
+          ))}
+        </div>
+      </fieldset>
 
       <div className="field-row">
         <Field label="Quantity" htmlFor={`${idp}-qty`}>

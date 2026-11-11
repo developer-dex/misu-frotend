@@ -110,6 +110,8 @@ export interface Purchase {
   unit: string;
   amount: number;
   note: string;
+  /** null for purchases saved before cash or online was asked */
+  payment: Payment | null;
   createdAt: string;
 }
 
