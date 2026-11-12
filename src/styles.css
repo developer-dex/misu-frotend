@@ -2042,6 +2042,19 @@ button:disabled {
   font-weight: 700;
 }
 
+.till-now-pct {
+  display: block;
+  margin-top: 2px;
+  color: var(--ink-2);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.till-now-pct strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .till-now-sum.is-loading {
   opacity: 0.6;
 }

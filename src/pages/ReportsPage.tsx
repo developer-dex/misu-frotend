@@ -152,7 +152,15 @@ function TillNow() {
             <dd>−{inr(a.spent)}</dd>
           </div>
           <div className="till-now-profit">
-            <dt>{a.profit < 0 ? 'Loss' : 'Profit'}</dt>
+            <dt>
+              {a.profit < 0 ? 'Loss' : 'Profit'}
+              {/* Share of the takings that is left after purchases (the margin) */}
+              {a.sold > 0 && (
+                <span className="till-now-pct">
+                  <strong>{((Math.abs(a.profit) / a.sold) * 100).toFixed(1)}%</strong> of what you sold
+                </span>
+              )}
+            </dt>
             <dd className={a.profit < 0 ? 'is-bad' : a.profit > 0 ? 'is-good' : ''}>{a.profit < 0 ? `−${inr(-a.profit)}` : inr(a.profit)}</dd>
           </div>
         </dl>
