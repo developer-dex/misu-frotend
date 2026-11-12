@@ -204,7 +204,18 @@ export interface DayEntry {
   prepared: EntryLine[];
   /** price: what this day sold at (saved before, else today's menu); menuPrice: today's menu */
   products: { productId: string; name: string; price: number; menuPrice: number; active: boolean }[];
-  live: { orderCount: number; units: number; net: number; sessionCount: number };
+  live: { orderCount: number; units: number; net: number; cash: number; online: number; sessionCount: number };
+  /** The whole day: Sell orders and the typed-in total together (missing from older servers) */
+  sold?: {
+    orderCount: number;
+    units: number;
+    gross: number;
+    discount: number;
+    net: number;
+    cash: number;
+    online: number;
+    byProduct: { productId: string; name: string; units: number }[];
+  };
 }
 
 export interface DayEntryInput {

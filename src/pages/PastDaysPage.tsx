@@ -120,6 +120,11 @@ function PastDayRow({ day: d, onOpen }: { day: ReportDay; onOpen: () => void }) 
           {recorded ? `${plural(d.units, 'tiramisu', 'tiramisu')} sold` : d.off ? 'Stall closed' : 'Nothing recorded'}
           {d.workedMs > 0 && ` · ${duration(d.workedMs)}`}
         </span>
+        {recorded && (
+          <span className="meta past-split">
+            Cash {inr(d.cash)} · Online {inr(d.online)}
+          </span>
+        )}
       </span>
       {recorded ? <span className="purchase-amount">{inr(d.net)}</span> : d.off ? null : <span className="past-add">Add</span>}
     </button>
@@ -127,9 +132,11 @@ function PastDayRow({ day: d, onOpen }: { day: ReportDay; onOpen: () => void }) 
 }
 
 function DayEntrySheet({ day, onDone, onChanged }: { day: string; onDone: () => void; onChanged: () => void }) {
-  const entry = useLoad(() => api.dayEntry(day), [day], `entry:${day}`);
+  // No remembered copy: the form below starts from what it is first given, so that must be the latest
+  const entry = useLoad(() => api.dayEntry(day), [day]);
   const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   if (entry.error && !entry.data) return <LoadError message={entry.error} onRetry={entry.reload} />;
   if (!entry.data) return <Spinner />;
 
@@ -164,8 +171,12 @@ function DayEntrySheet({ day, onDone, onChanged }: { day: string; onDone: () => 
 
   // Only a day with nothing on it can be a day off
   const empty = !e.exists && e.live.orderCount === 0 && e.live.sessionCount === 0;
+  // A day rung up on Sell needs no form unless something was sold off the screen too
+  const showForm = e.exists || e.live.orderCount === 0 || adding;
   return (
     <>
+      {/* An older server does not send the day's totals yet */}
+      {e.sold && e.sold.orderCount > 0 && <DaySold sold={e.sold} live={e.live} exists={e.exists} />}
       {empty && (
         <div className="day-off-offer">
           <span className="meta">Stall closed this day?</span>
@@ -174,8 +185,61 @@ function DayEntrySheet({ day, onDone, onChanged }: { day: string; onDone: () => 
           </button>
         </div>
       )}
-      <DayEntryForm entry={e} onDone={onDone} />
+      {showForm ? (
+        <DayEntryForm entry={e} onDone={onDone} />
+      ) : (
+        <div className="form">
+          <button type="button" className="btn btn-quiet btn-block" onClick={() => setAdding(true)}>
+            Add sales not rung up on Sell
+          </button>
+        </div>
+      )}
     </>
+  );
+}
+
+/** What the day took in all: orders from Sell and any typed-in day total. */
+function DaySold({ sold: s, live, exists }: { sold: NonNullable<DayEntry['sold']>; live: DayEntry['live']; exists: boolean }) {
+  return (
+    <section className="entry-section day-sold" aria-labelledby="day-sold">
+      <div className="entry-head">
+        <h3 id="day-sold" className="sheet-subhead">
+          Sold this day
+        </h3>
+        <span className="meta">{plural(s.units, 'tiramisu', 'tiramisu')}</span>
+      </div>
+      {s.byProduct.length > 0 && <p className="meta day-sold-flavours">{s.byProduct.map((p) => `${p.units} ${p.name}`).join(' · ')}</p>}
+      <dl className="order-sum">
+        <div>
+          <dt>
+            <i className="swatch swatch-cash" aria-hidden="true" /> Cash
+          </dt>
+          <dd>{inr(s.cash)}</dd>
+        </div>
+        <div>
+          <dt>
+            <i className="swatch swatch-online" aria-hidden="true" /> Online
+          </dt>
+          <dd>{inr(s.online)}</dd>
+        </div>
+        {s.discount > 0 && (
+          <div>
+            <dt>Discounts given</dt>
+            <dd>−{inr(s.discount)}</dd>
+          </div>
+        )}
+        <div className="order-total">
+          <dt>Day total</dt>
+          <dd>{inr(s.net)}</dd>
+        </div>
+      </dl>
+      {live.orderCount > 0 && exists && (
+        <p className="meta">
+          {plural(live.orderCount, 'order')} from Sell ({inr(live.net)}) plus the day total typed in below.
+        </p>
+      )}
+      {live.orderCount > 0 && !exists && <p className="meta">From {plural(live.orderCount, 'order')} rung up on Sell.</p>}
+    </section>
   );
 }
 

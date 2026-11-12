@@ -1647,6 +1647,38 @@ button:disabled {
   font-weight: 600;
 }
 
+.past-split {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Past days sheet: the day's sales at the top */
+.day-sold {
+  margin-bottom: 18px;
+  padding: 14px 16px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+}
+
+.day-sold .order-sum {
+  margin: 10px 0;
+  padding-top: 10px;
+}
+
+.day-sold .order-sum dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.day-sold > p.meta {
+  margin-bottom: 10px;
+}
+
+.day-sold-flavours {
+  margin-top: 2px;
+}
+
 .past-add {
   color: var(--brand);
   font-size: 14px;
