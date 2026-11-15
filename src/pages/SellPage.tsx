@@ -382,6 +382,8 @@ function OrderForm({
   const [qty, setQty] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState('');
   const [payment, setPayment] = useState<Payment | null>(null);
+  // Cash the customer hands over, only to work out their change; never saved
+  const [received, setReceived] = useState('');
   // Orders still on their way to the server; the form is free for the next one meanwhile
   const sending = useRef({ seq: 0, applied: 0, open: 0, skipped: false });
 
@@ -402,6 +404,7 @@ function OrderForm({
     setQty({});
     setDiscount('');
     setPayment(null);
+    setReceived('');
   };
 
   const submit = async () => {
@@ -521,6 +524,8 @@ function OrderForm({
         </div>
       </dl>
 
+      {payment === 'cash' && units > 0 && <CashChange total={total} received={received} onChange={setReceived} />}
+
       <button type="button" className="btn btn-primary btn-block btn-lg" disabled={!ready} onClick={submit} aria-describedby="order-hint">
         Submit order
       </button>
@@ -528,6 +533,49 @@ function OrderForm({
         {hint}
       </p>
     </Panel>
+  );
+}
+
+// Notes customers usually pay with, offered as one-tap amounts
+const NOTES = [100, 200, 500, 2000];
+
+/** How much change to hand back for the cash the customer gave. Only shown, never saved. */
+function CashChange({ total, received, onChange }: { total: number; received: string; onChange: (v: string) => void }) {
+  const given = toAmount(received);
+  const diff = Math.round((given - total) * 100) / 100;
+  const notes = NOTES.filter((n) => n >= total);
+
+  return (
+    <div className="cash-change">
+      <div className="order-discount">
+        <label htmlFor="cash-received">Customer gave</label>
+        <MoneyInput id="cash-received" value={received} onChange={onChange} />
+      </div>
+      {notes.length > 0 && (
+        <div className="cash-notes" role="group" aria-label="Amount the customer gave">
+          {notes.map((n) => (
+            <button key={n} type="button" className={`chip ${given === n ? 'is-on' : ''}`} aria-pressed={given === n} onClick={() => onChange(String(n))}>
+              {inr(n)}
+            </button>
+          ))}
+        </div>
+      )}
+      {given > 0 && (
+        <p className={`cash-back ${diff < 0 ? 'is-short' : ''}`} aria-live="polite">
+          {diff < 0 ? (
+            <>
+              <span>Still to pay</span>
+              <strong>{inr(-diff)}</strong>
+            </>
+          ) : (
+            <>
+              <span>Give back</span>
+              <strong>{inr(diff)}</strong>
+            </>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
 

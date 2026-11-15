@@ -886,6 +886,54 @@ button:disabled {
   width: 140px;
 }
 
+/* Change for a cash customer, under the order total */
+.cash-change {
+  margin: -4px 0 16px;
+  padding: 12px 14px 14px;
+  border-radius: var(--r-ctl);
+  background: var(--surface-2);
+}
+
+.cash-change .order-discount {
+  margin-top: 0;
+}
+
+.cash-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cash-notes .chip {
+  height: 36px;
+}
+
+.cash-notes .chip:not(.is-on) {
+  background: var(--surface);
+}
+
+.cash-back {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-weight: 600;
+}
+
+.cash-back strong {
+  color: var(--positive);
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cash-back.is-short strong {
+  color: var(--negative);
+}
+
 .pay-choice {
   display: grid;
   grid-template-columns: 1fr 1fr;
