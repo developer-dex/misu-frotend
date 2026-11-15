@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertTriangle, Banknote, CalendarDays, Check, Pause, Play, RefreshCw, Smartphone, X } from 'lucide-react';
+import { AlertTriangle, Banknote, CalendarDays, Check, Clock, Phone, Pause, Play, RefreshCw, Smartphone, X } from 'lucide-react';
 import { api } from '../api';
 import { SellTabs } from '../components/SellTabs';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, MoneyInput, Panel, Sheet, Spinner, Stepper, toAmount } from '../components/ui';
-import { clockTime, duration, inr, longDay, num, plural, shortDay, stopwatch, todayLocal } from '../lib/format';
+import { clockTime, duration, inr, longDay, num, payLabel, plural, shortDay, stopwatch, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
 import type { DayView, Order, Payment, Product } from '../types';
 
@@ -143,6 +143,7 @@ export function SellPage() {
       <div className="sell-grid">
         <div className="sell-main">
           <ShiftClock view={view} isPast={view.day < today} onChange={setView} />
+          <HeldPanel view={view} onChange={setView} onRefresh={day.reload} />
           <OrderForm day={view.day} products={activeProducts} stock={view.byProduct} onSaved={setView} onRefresh={day.reload} toast={toast} />
         </div>
         <div className="sell-side">
@@ -314,7 +315,8 @@ function ShiftClock({ view, isPast, onChange }: { view: DayView; isPast: boolean
 const LOW_LEFT = 2;
 
 function leftOf(p: DayView['byProduct'][number]): number | null {
-  return p.prepared === null ? null : p.prepared - p.sold;
+  // Tiramisu set aside for orders on hold are off the tray too
+  return p.prepared === null ? null : p.prepared - p.sold - (p.held ?? 0);
 }
 
 function alertText(name: string, left: number): string {
@@ -381,7 +383,10 @@ function OrderForm({
 }) {
   const [qty, setQty] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState('');
-  const [payment, setPayment] = useState<Payment | null>(null);
+  // 'hold': the customer pays when they collect it
+  const [payment, setPayment] = useState<Payment | 'hold' | null>(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   // Cash the customer hands over, only to work out their change; never saved
   const [received, setReceived] = useState('');
   // Orders still on their way to the server; the form is free for the next one meanwhile
@@ -393,25 +398,30 @@ function OrderForm({
   const discountAmount = toAmount(discount);
   const total = Math.max(0, subtotal - discountAmount);
   const discountTooBig = discountAmount > subtotal && units > 0;
-  const ready = units > 0 && payment !== null && !discountTooBig;
+  const needsName = payment === 'hold' && customerName.trim() === '';
+  const ready = units > 0 && payment !== null && !discountTooBig && !needsName;
 
   let hint = '';
   if (units === 0) hint = 'Add a tiramisu to start';
-  else if (!payment) hint = 'Choose cash or online';
+  else if (!payment) hint = 'Choose cash, online or on hold';
   else if (discountTooBig) hint = 'Discount is more than the order';
+  else if (needsName) hint = 'Enter the customer name to put the order on hold';
 
   const reset = () => {
     setQty({});
     setDiscount('');
     setPayment(null);
     setReceived('');
+    setCustomerName('');
+    setCustomerPhone('');
   };
 
   const submit = async () => {
     if (!ready || !payment) return;
-    const draft = { qty, discount, payment };
+    const customer = payment === 'hold' ? { name: customerName.trim(), phone: customerPhone.trim() } : undefined;
+    const draft = { qty, discount, payment, customerName, customerPhone };
     const items = lines.map((p) => ({ productId: p.id, qty: qty[p.id] }));
-    const label = `${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment}`;
+    const label = `${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment === 'hold' ? `on hold for ${customer!.name}` : payment}`;
     const s = sending.current;
     const id = ++s.seq;
     s.open++;
@@ -419,7 +429,7 @@ function OrderForm({
     reset();
     toast(`Saving ${label}…`);
     try {
-      const res = await api.addOrder({ day, items, discount: discountAmount, payment: draft.payment });
+      const res = await api.addOrder({ day, items, discount: discountAmount, payment: draft.payment, customer });
       // Answers can come back out of order; an older one must not hide a newer order
       if (id > s.applied) {
         s.applied = id;
@@ -444,6 +454,8 @@ function OrderForm({
       setQty(draft.qty);
       setDiscount(draft.discount);
       setPayment(draft.payment);
+      setCustomerName(draft.customerName);
+      setCustomerPhone(draft.customerPhone);
       toast(`Not saved: ${(err as Error).message}`, { tone: 'error' });
     } finally {
       s.open--;
@@ -488,8 +500,8 @@ function OrderForm({
         <MoneyInput id="discount" value={discount} onChange={setDiscount} />
       </div>
 
-      <div className="pay-choice" role="radiogroup" aria-label="Payment">
-        {(['cash', 'online'] as const).map((method) => (
+      <div className="pay-choice pay-choice-3" role="radiogroup" aria-label="Payment">
+        {(['cash', 'online', 'hold'] as const).map((method) => (
           <button
             key={method}
             type="button"
@@ -498,12 +510,45 @@ function OrderForm({
             className={`pay-btn ${payment === method ? 'is-on' : ''}`}
             onClick={() => setPayment(method)}
           >
-            {method === 'cash' ? <Banknote size={22} strokeWidth={1.75} aria-hidden="true" /> : <Smartphone size={22} strokeWidth={1.75} aria-hidden="true" />}
-            {method === 'cash' ? 'Cash' : 'Online'}
+            {method === 'cash' ? (
+              <Banknote size={22} strokeWidth={1.75} aria-hidden="true" />
+            ) : method === 'online' ? (
+              <Smartphone size={22} strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <Clock size={22} strokeWidth={1.75} aria-hidden="true" />
+            )}
+            {payLabel(method === 'hold' ? null : method)}
             {payment === method && <Check size={18} className="pay-check" aria-hidden="true" />}
           </button>
         ))}
       </div>
+
+      {payment === 'hold' && (
+        <div className="hold-fields">
+          <p className="meta">The customer pays when they collect it. It is not counted in takings until then.</p>
+          <div className="field-row">
+            <div className="field">
+              <label htmlFor="hold-name">Customer name</label>
+              <input id="hold-name" className="input" value={customerName} onChange={(e) => setCustomerName(e.target.value)} maxLength={60} autoComplete="off" />
+            </div>
+            <div className="field">
+              <label htmlFor="hold-phone">
+                Phone <span className="meta">(optional)</span>
+              </label>
+              <input
+                id="hold-phone"
+                className="input"
+                type="tel"
+                inputMode="tel"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value.replace(/[^\d+\-\s()]/g, ''))}
+                maxLength={20}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <dl className="order-sum">
         {discountAmount > 0 && (
@@ -527,7 +572,7 @@ function OrderForm({
       {payment === 'cash' && units > 0 && <CashChange total={total} received={received} onChange={setReceived} />}
 
       <button type="button" className="btn btn-primary btn-block btn-lg" disabled={!ready} onClick={submit} aria-describedby="order-hint">
-        Submit order
+        {payment === 'hold' ? 'Put order on hold' : 'Submit order'}
       </button>
       <p id="order-hint" className="form-hint" aria-live="polite">
         {hint}
@@ -579,6 +624,37 @@ function CashChange({ total, received, onChange }: { total: number; received: st
   );
 }
 
+/** Orders waiting to be paid for, from any day. Tap one when the customer comes to pay. */
+function HeldPanel({ view, onChange, onRefresh }: { view: DayView; onChange: (v: DayView) => void; onRefresh: () => void }) {
+  const [selected, setSelected] = useState<Order | null>(null);
+  const held = view.held ?? [];
+  if (held.length === 0) return null;
+  const total = held.reduce((sum, o) => sum + o.total, 0);
+  const today = todayLocal();
+
+  return (
+    <Panel title="On hold" id="held" className="held-panel" aside={<span className="meta">{plural(held.length, 'order')} · {inr(total)}</span>}>
+      <ul className="order-list">
+        {held.map((o) => (
+          <li key={o.id}>
+            <button type="button" className="order-row held-row" onClick={() => setSelected(o)}>
+              <span className="order-time">{o.day === today ? clockTime(o.createdAt) : shortDay(o.day)}</span>
+              <span className="order-items">
+                <strong className="order-customer">{o.customer?.name ?? 'Customer'}</strong>
+                {o.customer?.phone && <span className="meta"> · {o.customer.phone}</span>}
+                <span className="held-items">{itemsLabel(o)}</span>
+              </span>
+              <span className="pill pill-hold">Pay</span>
+              <span className="order-amount">{inr(o.total)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <OrderSheet order={selected} view={view} onClose={() => setSelected(null)} onChange={onChange} onRefresh={onRefresh} />
+    </Panel>
+  );
+}
+
 function TakingsPanel({ view }: { view: DayView }) {
   const s = view.summary;
   return (
@@ -598,6 +674,11 @@ function TakingsPanel({ view }: { view: DayView }) {
           <dd>{s.discount > 0 ? `−${inr(s.discount)}` : inr(0)}</dd>
         </div>
       </dl>
+      {s.heldCount > 0 && (
+        <p className="meta takings-held">
+          Not counted yet: {plural(s.heldCount, 'order')} on hold · {inr(s.heldTotal)}
+        </p>
+      )}
     </Panel>
   );
 }
@@ -619,7 +700,7 @@ function StockPanel({ view, products, onChange }: { view: DayView; products: Pro
     >
       <ul className="tray-list">
         {view.byProduct.map((p) => {
-          const left = p.prepared === null ? null : p.prepared - p.sold;
+          const left = leftOf(p);
           const cells = p.prepared ?? 0;
           return (
             <li key={p.productId}>
@@ -627,6 +708,7 @@ function StockPanel({ view, products, onChange }: { view: DayView; products: Pro
                 <strong>{p.name}</strong>
                 <span className="tray-count">
                   {num(p.sold)} sold
+                  {p.held > 0 && ` · ${num(p.held)} on hold`}
                   {left !== null && (
                     <>
                       {' · '}
@@ -745,42 +827,56 @@ function OrdersPanel({
               <button type="button" className="order-row" onClick={() => setSelected(o)}>
                 <span className="order-time">{o.source === 'summary' ? 'Day total' : clockTime(o.createdAt)}</span>
                 <span className="order-items">
+                  {o.customer && <strong className="order-customer">{o.customer.name} · </strong>}
                   {itemsLabel(o)}
                   {o.discount > 0 && <span className="order-discount-note"> · −{inr(o.discount)}</span>}
                 </span>
-                <span className={`pill pill-${o.payment}`}>{o.payment === 'cash' ? 'Cash' : 'Online'}</span>
+                <span className={`pill pill-${o.payment ?? 'hold'}`}>{payLabel(o.payment)}</span>
                 <span className="order-amount">{inr(o.total)}</span>
               </button>
             </li>
           ))}
         </ul>
       )}
-      <OrderSheet order={selected} dayOf={view.day} onClose={() => setSelected(null)} onChange={onChange} />
+      <OrderSheet order={selected} view={view} onClose={() => setSelected(null)} onChange={onChange} onRefresh={onRefresh} />
     </Panel>
   );
 }
 
+/** Shows the day the screen is on: an answer about another day's order means reloading this one. */
+function applyDay(res: { day: DayView }, view: DayView, onChange: (v: DayView) => void, onRefresh: () => void) {
+  if (res.day.day === view.day) onChange(res.day);
+  else onRefresh();
+}
+
 function OrderSheet({
   order,
-  dayOf,
+  view,
   onClose,
   onChange,
+  onRefresh,
 }: {
   order: Order | null;
-  dayOf: string;
+  view: DayView;
   onClose: () => void;
   onChange: (v: DayView) => void;
+  onRefresh: () => void;
 }) {
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [received, setReceived] = useState('');
+  const dayOf = view.day;
 
-  useEffect(() => setConfirming(false), [order]);
+  useEffect(() => {
+    setConfirming(false);
+    setReceived('');
+  }, [order]);
 
   const run = async (action: () => Promise<{ day: DayView }>, message: string) => {
     setBusy(true);
     try {
-      onChange((await action()).day);
+      applyDay(await action(), view, onChange, onRefresh);
       toast(message);
       onClose();
     } catch (err) {
@@ -791,15 +887,34 @@ function OrderSheet({
   };
 
   const other: Payment = order?.payment === 'cash' ? 'online' : 'cash';
+  const held = order !== null && order.payment === null;
+
+  let title = 'Order';
+  if (order) {
+    if (order.source === 'summary') title = `Day total, paid ${order.payment}`;
+    else if (held) title = `On hold for ${order.customer?.name ?? 'customer'}`;
+    else title = `Order at ${clockTime(order.createdAt)}`;
+  }
 
   return (
-    <Sheet
-      open={order !== null}
-      onClose={onClose}
-      title={order ? (order.source === 'summary' ? `Day total, paid ${order.payment}` : `Order at ${clockTime(order.createdAt)}`) : 'Order'}
-    >
+    <Sheet open={order !== null} onClose={onClose} title={title}>
       {order && (
         <>
+          {order.customer && (
+            <p className="hold-customer">
+              <strong>{order.customer.name}</strong>
+              {order.customer.phone && (
+                <a href={`tel:${order.customer.phone.replace(/[^\d+]/g, '')}`} className="link-btn hold-phone">
+                  <Phone size={14} aria-hidden="true" />
+                  {order.customer.phone}
+                </a>
+              )}
+              <span className="meta">
+                Ordered {order.day === todayLocal() ? 'today' : shortDay(order.day)} at {clockTime(order.createdAt)}
+                {order.paidAt && !held && ` · paid ${order.payment} at ${clockTime(order.paidAt)}`}
+              </span>
+            </p>
+          )}
           <dl className="order-sum order-detail">
             {order.items.map((i) => (
               <div key={i.productId}>
@@ -816,11 +931,38 @@ function OrderSheet({
               </div>
             )}
             <div className="order-total">
-              <dt>Paid {order.payment}</dt>
+              <dt>{held ? 'To pay' : `Paid ${order.payment}`}</dt>
               <dd>{inr(order.total)}</dd>
             </div>
           </dl>
-          {order.source === 'summary' ? (
+          {held ? (
+            <div className="sheet-actions">
+              <CashChange total={order.total} received={received} onChange={setReceived} />
+              <div className="pay-choice">
+                {(['cash', 'online'] as const).map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    className="pay-btn"
+                    disabled={busy}
+                    onClick={() => run(() => api.setOrderPayment(order.id, method), `${order.customer?.name ?? 'Order'} paid ${inr(order.total)} ${method}`)}
+                  >
+                    {method === 'cash' ? <Banknote size={22} strokeWidth={1.75} aria-hidden="true" /> : <Smartphone size={22} strokeWidth={1.75} aria-hidden="true" />}
+                    Paid {method}
+                  </button>
+                ))}
+              </div>
+              {confirming ? (
+                <button type="button" className="btn btn-danger btn-block" disabled={busy} onClick={() => run(() => api.deleteOrder(order.id), 'Order deleted')}>
+                  Yes, delete this order
+                </button>
+              ) : (
+                <button type="button" className="btn btn-danger-quiet btn-block" onClick={() => setConfirming(true)}>
+                  Customer did not come: delete order
+                </button>
+              )}
+            </div>
+          ) : order.source === 'summary' ? (
             <div className="sheet-actions">
               <p className="meta">This was typed in as the day's total on Past days. Change or remove it there.</p>
               <Link to={`/past?day=${dayOf}`} className="btn btn-quiet btn-block">

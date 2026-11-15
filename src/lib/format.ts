@@ -100,3 +100,8 @@ export function shiftMonth(month: string, delta: number): string {
   d.setMonth(d.getMonth() + delta);
   return todayLocal(d).slice(0, 7);
 }
+
+/** "Cash", "Online", or "On hold" for an order not paid yet */
+export function payLabel(payment: 'cash' | 'online' | null): string {
+  return payment === 'cash' ? 'Cash' : payment === 'online' ? 'Online' : 'On hold';
+}

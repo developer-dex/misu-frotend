@@ -31,7 +31,12 @@ export interface Order {
   subtotal: number;
   discount: number;
   total: number;
-  payment: Payment;
+  /** null while the order is on hold (the customer pays when they collect it) */
+  payment: Payment | null;
+  day: string;
+  /** Who an on-hold order is for; kept after it is paid */
+  customer: { name: string; phone: string } | null;
+  paidAt: string | null;
   note: string;
   sessionId: string | null;
   source: EntrySource;
@@ -97,9 +102,12 @@ export interface DayView {
   currentSession: StallSession | null;
   running: boolean;
   workedMs: number;
-  byProduct: { productId: string; name: string; sold: number; prepared: number | null }[];
-  summary: Takings;
+  /** held: set aside for orders on hold, not counted as sold yet */
+  byProduct: { productId: string; name: string; sold: number; held: number; prepared: number | null }[];
+  summary: Takings & { heldCount: number; heldTotal: number };
   orders: Order[];
+  /** Every order on hold, from any day */
+  held: Order[];
 }
 
 export interface Purchase {

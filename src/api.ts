@@ -89,7 +89,13 @@ export const api = {
   saveDayEntry: (day: string, body: DayEntryInput) => request<DayEntry>('PUT', `/days/${day}/entry`, body),
   clearDayEntry: (day: string) => request<DayEntry>('DELETE', `/days/${day}/entry`),
 
-  addOrder: (body: { day: string; items: { productId: string; qty: number }[]; discount: number; payment: Payment }) =>
+  addOrder: (body: {
+    day: string;
+    items: { productId: string; qty: number }[];
+    discount: number;
+    payment: Payment | 'hold';
+    customer?: { name: string; phone: string };
+  }) =>
     request<{ orderId: string; day: DayView }>('POST', '/orders', body),
   setOrderPayment: (id: string, payment: Payment) => request<{ day: DayView }>('PATCH', `/orders/${id}`, { payment }),
   deleteOrder: (id: string) => request<{ day: DayView }>('DELETE', `/orders/${id}`),

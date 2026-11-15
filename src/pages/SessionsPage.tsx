@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, Panel, Sheet, Spinner } from '../components/ui';
-import { clockTime, duration, inr, longDay, monthName, monthRange, num, plural, shiftMonth, shortDay, todayLocal } from '../lib/format';
+import { clockTime, duration, inr, longDay, monthName, monthRange, num, payLabel, plural, shiftMonth, shortDay, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
 import type { Order, SessionLog, StallSession } from '../types';
 
@@ -284,7 +284,7 @@ function SessionSheet({
                         {o.items.map((i) => `${i.qty} ${i.name}`).join(' · ')}
                         {o.discount > 0 && <span className="order-discount-note"> · −{inr(o.discount)}</span>}
                       </span>
-                      <span className={`pill pill-${o.payment}`}>{o.payment === 'cash' ? 'Cash' : 'Online'}</span>
+                      <span className={`pill pill-${o.payment ?? 'hold'}`}>{payLabel(o.payment)}</span>
                       <span className="order-amount">{inr(o.total)}</span>
                     </div>
                   </li>
