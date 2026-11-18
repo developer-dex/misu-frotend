@@ -149,16 +149,19 @@ export function MoneyInput({
   onChange,
   placeholder = '0',
   autoFocus,
+  percent = false,
 }: {
   id: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
+  /** Show % after the number instead of ₹ before it */
+  percent?: boolean;
 }) {
   return (
-    <div className="money-input">
-      <span aria-hidden="true">₹</span>
+    <div className={`money-input ${percent ? 'is-percent' : ''}`}>
+      <span aria-hidden="true">{percent ? '%' : '₹'}</span>
       <input
         id={id}
         type="text"

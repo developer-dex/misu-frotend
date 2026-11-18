@@ -383,6 +383,8 @@ function OrderForm({
 }) {
   const [qty, setQty] = useState<Record<string, number>>({});
   const [discount, setDiscount] = useState('');
+  // Discount typed as rupees off, or as a percentage of the order. Kept between orders.
+  const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('amount');
   // 'hold': the customer pays when they collect it
   const [payment, setPayment] = useState<Payment | 'hold' | null>(null);
   const [customerName, setCustomerName] = useState('');
@@ -395,16 +397,18 @@ function OrderForm({
   const lines = products.filter((p) => (qty[p.id] ?? 0) > 0);
   const units = lines.reduce((s, p) => s + qty[p.id], 0);
   const subtotal = lines.reduce((s, p) => s + p.price * qty[p.id], 0);
-  const discountAmount = toAmount(discount);
+  const discountPct = discountMode === 'percent' ? toAmount(discount) : 0;
+  // A percentage is rounded to whole rupees, which is what changes hands at the stall
+  const discountAmount = discountMode === 'percent' ? Math.round((subtotal * Math.min(discountPct, 100)) / 100) : toAmount(discount);
   const total = Math.max(0, subtotal - discountAmount);
-  const discountTooBig = discountAmount > subtotal && units > 0;
+  const discountTooBig = units > 0 && (discountMode === 'percent' ? discountPct > 100 : discountAmount > subtotal);
   const needsName = payment === 'hold' && customerName.trim() === '';
   const ready = units > 0 && payment !== null && !discountTooBig && !needsName;
 
   let hint = '';
   if (units === 0) hint = 'Add a tiramisu to start';
   else if (!payment) hint = 'Choose cash, online or on hold';
-  else if (discountTooBig) hint = 'Discount is more than the order';
+  else if (discountTooBig) hint = discountMode === 'percent' ? 'Discount cannot be more than 100%' : 'Discount is more than the order';
   else if (needsName) hint = 'Enter the customer name to put the order on hold';
 
   const reset = () => {
@@ -419,7 +423,7 @@ function OrderForm({
   const submit = async () => {
     if (!ready || !payment) return;
     const customer = payment === 'hold' ? { name: customerName.trim(), phone: customerPhone.trim() } : undefined;
-    const draft = { qty, discount, payment, customerName, customerPhone };
+    const draft = { qty, discount, discountMode, payment, customerName, customerPhone };
     const items = lines.map((p) => ({ productId: p.id, qty: qty[p.id] }));
     const label = `${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment === 'hold' ? `on hold for ${customer!.name}` : payment}`;
     const s = sending.current;
@@ -453,6 +457,7 @@ function OrderForm({
       // Put the order back so nothing is lost
       setQty(draft.qty);
       setDiscount(draft.discount);
+      setDiscountMode(draft.discountMode);
       setPayment(draft.payment);
       setCustomerName(draft.customerName);
       setCustomerPhone(draft.customerPhone);
@@ -497,7 +502,29 @@ function OrderForm({
 
       <div className="order-discount">
         <label htmlFor="discount">Discount</label>
-        <MoneyInput id="discount" value={discount} onChange={setDiscount} />
+        <div className="discount-entry">
+          <div className="segmented discount-mode" role="radiogroup" aria-label="Discount as">
+            {(['amount', 'percent'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={discountMode === m}
+                aria-label={m === 'amount' ? 'Rupees off' : 'Percent off'}
+                className={discountMode === m ? 'is-on' : ''}
+                onClick={() => {
+                  if (m === discountMode) return;
+                  // ₹10 off and 10% off are different discounts, so start the box afresh
+                  setDiscountMode(m);
+                  setDiscount('');
+                }}
+              >
+                {m === 'amount' ? '₹' : '%'}
+              </button>
+            ))}
+          </div>
+          <MoneyInput id="discount" value={discount} onChange={setDiscount} percent={discountMode === 'percent'} />
+        </div>
       </div>
 
       <div className="pay-choice pay-choice-3" role="radiogroup" aria-label="Payment">
@@ -558,7 +585,7 @@ function OrderForm({
               <dd>{inr(subtotal)}</dd>
             </div>
             <div>
-              <dt>Discount</dt>
+              <dt>Discount{discountMode === 'percent' && <span> · {num(discountPct)}%</span>}</dt>
               <dd className={discountTooBig ? 'is-bad' : ''}>−{inr(discountAmount)}</dd>
             </div>
           </>
