@@ -162,6 +162,12 @@ export interface Report {
     unitsPerHour: number | null;
   };
   products: { productId: string; name: string; units: number; gross: number }[];
+  /** Money in from sales and out on purchases, by how it was paid; unmarked = purchases saved before cash or online was asked */
+  byPayment?: {
+    cash: PaymentFlow;
+    online: PaymentFlow;
+    unmarked: { spent: number; purchases: number };
+  };
   spendByItem: { item: string; amount: number }[];
   days: ReportDay[];
 }
@@ -233,4 +239,13 @@ export interface DayEntryInput {
   online: { items: EntryLine[]; discount: number };
   prepared: EntryLine[] | null;
   prices: { productId: string; price: number }[];
+}
+
+export interface PaymentFlow {
+  /** Takings paid this way */
+  sold: number;
+  orders: number;
+  /** Purchases paid this way */
+  spent: number;
+  purchases: number;
 }

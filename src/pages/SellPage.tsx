@@ -683,6 +683,10 @@ function TakingsPanel({ view }: { view: DayView }) {
   );
 }
 
+function trayLabel(p: DayView['byProduct'][number]): string {
+  return `${p.sold} of ${p.prepared} sold${p.held > 0 ? `, ${p.held} on hold` : ''}`;
+}
+
 /** Sold against made, per flavour: the tray running down through the evening. */
 function StockPanel({ view, products, onChange }: { view: DayView; products: Product[]; onChange: (v: DayView) => void }) {
   const [editing, setEditing] = useState(false);
@@ -718,14 +722,16 @@ function StockPanel({ view, products, onChange }: { view: DayView; products: Pro
                 </span>
               </div>
               {p.prepared !== null && cells > 0 && cells <= 60 ? (
-                <div className="tray" role="img" aria-label={`${p.sold} of ${p.prepared} sold`}>
+                // Sold cups empty first, then the ones set aside for orders on hold; the full ones are left
+                <div className="tray" role="img" aria-label={trayLabel(p)}>
                   {Array.from({ length: cells }, (_, i) => (
-                    <span key={i} className={i < p.sold ? 'cup is-sold' : 'cup'} />
+                    <span key={i} className={i < p.sold ? 'cup is-sold' : i < p.sold + p.held ? 'cup is-held' : 'cup'} />
                   ))}
                 </div>
               ) : p.prepared !== null && cells > 60 ? (
-                <div className="bar" role="img" aria-label={`${p.sold} of ${p.prepared} sold`}>
+                <div className="bar" role="img" aria-label={trayLabel(p)}>
                   <span style={{ width: `${Math.min(100, (p.sold / cells) * 100)}%` }} />
+                  {p.held > 0 && <span className="is-held" style={{ width: `${Math.min(100, (p.held / cells) * 100)}%` }} />}
                 </div>
               ) : null}
             </li>

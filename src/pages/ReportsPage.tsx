@@ -4,7 +4,7 @@ import { BarList, DailyBars, RunningTotals } from '../components/charts';
 import { Empty, LoadError, Panel, Spinner } from '../components/ui';
 import { addDays, dayMonth, duration, inr, monthRange, num, plural, shiftMonth, shortDay, todayLocal } from '../lib/format';
 import { useLoad } from '../lib/useLoad';
-import type { Report } from '../types';
+import type { PaymentFlow, Report } from '../types';
 
 type Preset = 'today' | 'week' | 'month' | 'last-month' | 'custom';
 
@@ -276,6 +276,8 @@ function ReportBody({ r, loading }: { r: Report; loading: boolean }) {
           )}
         </Panel>
 
+        {r.byPayment && <PaymentFlowPanel flows={r.byPayment} />}
+
         <Panel title="Day by day" id="days" className="span-3">
           {activeDays.length === 0 ? (
             <Empty>No stall days in these dates.</Empty>
@@ -374,6 +376,86 @@ function BuySellPanel({ r }: { r: Report }) {
         </div>
       )}
     </Panel>
+  );
+}
+
+/** For cash and for online: what came in from sales, what went out on purchases, and what is left. */
+function PaymentFlowPanel({ flows }: { flows: NonNullable<Report['byPayment']> }) {
+  const { cash, online, unmarked } = flows;
+  const nothing = cash.sold + cash.spent + online.sold + online.spent + unmarked.spent === 0;
+
+  const left = (f: PaymentFlow) => f.sold - f.spent;
+  let finding = '';
+  if (!nothing) {
+    const part = (label: string, f: PaymentFlow) => {
+      const l = left(f);
+      if (f.sold === 0 && f.spent === 0) return `nothing by ${label}`;
+      return l >= 0 ? `${inr(l)} more came in by ${label} than went out` : `${inr(-l)} more went out by ${label} than came in`;
+    };
+    finding = `${part('cash', cash)}, and ${part('online', online)}.`;
+    finding = finding[0].toUpperCase() + finding.slice(1);
+  }
+
+  return (
+    <Panel title="Cash and online: in and out" id="money-flow" className="span-3">
+      {nothing ? (
+        <Empty>No sales or purchases in these dates.</Empty>
+      ) : (
+        <>
+          <p className="compare-finding">{finding}</p>
+          <div className="flow-grid">
+            <FlowCard label="Cash" swatch="swatch-cash" f={cash} />
+            <FlowCard label="Online" swatch="swatch-online" f={online} />
+          </div>
+          {unmarked.spent > 0 && (
+            <p className="flow-note">
+              {unmarked.purchases === 1
+                ? `1 purchase worth ${inr(unmarked.spent)} is not marked as cash or online, so it is left out above. Edit it on the Purchases page to choose one.`
+                : `${plural(unmarked.purchases, 'purchase')} worth ${inr(unmarked.spent)} are not marked as cash or online, so they are left out above. Edit them on the Purchases page to choose one.`}
+            </p>
+          )}
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function FlowCard({ label, swatch, f }: { label: string; swatch: string; f: PaymentFlow }) {
+  const l = f.sold - f.spent;
+  const top = Math.max(f.sold, f.spent, 1);
+  return (
+    <section className="flow-card" aria-label={label}>
+      <h3 className="flow-head">
+        <i className={`swatch ${swatch}`} aria-hidden="true" />
+        {label}
+      </h3>
+      <dl className="flow-rows">
+        <div>
+          <dt>
+            Came in from sales
+            <span className="meta">{plural(f.orders, 'order')}</span>
+          </dt>
+          <dd>{inr(f.sold)}</dd>
+        </div>
+        <div className="flow-bar" aria-hidden="true">
+          <span className="flow-in" style={{ width: `${(f.sold / top) * 100}%` }} />
+        </div>
+        <div>
+          <dt>
+            Went out on purchases
+            <span className="meta">{plural(f.purchases, 'purchase')}</span>
+          </dt>
+          <dd>{f.spent > 0 ? `−${inr(f.spent)}` : inr(0)}</dd>
+        </div>
+        <div className="flow-bar" aria-hidden="true">
+          <span className="flow-out" style={{ width: `${(f.spent / top) * 100}%` }} />
+        </div>
+        <div className="flow-left">
+          <dt>{l < 0 ? 'Spent more than came in' : 'Left after purchases'}</dt>
+          <dd className={l < 0 ? 'is-bad' : l > 0 ? 'is-good' : ''}>{signedInr(l)}</dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 
