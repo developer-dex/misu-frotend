@@ -718,6 +718,19 @@ function trayLabel(p: DayView['byProduct'][number]): string {
 function StockPanel({ view, products, onChange }: { view: DayView; products: Product[]; onChange: (v: DayView) => void }) {
   const [editing, setEditing] = useState(false);
   const anyPrepared = view.byProduct.some((p) => p.prepared !== null);
+  // All flavours together. Made and left only count flavours whose number made is set.
+  const total = view.byProduct.reduce(
+    (t, p) => {
+      const left = leftOf(p);
+      return {
+        made: t.made + (p.prepared ?? 0),
+        sold: t.sold + p.sold,
+        held: t.held + p.held,
+        left: t.left + (left !== null ? Math.max(0, left) : 0),
+      };
+    },
+    { made: 0, sold: 0, held: 0, left: 0 },
+  );
 
   return (
     <Panel
@@ -765,6 +778,24 @@ function StockPanel({ view, products, onChange }: { view: DayView; products: Pro
           );
         })}
       </ul>
+      {view.byProduct.length > 1 && (anyPrepared || total.sold > 0 || total.held > 0) && (
+        <dl className="tray-total">
+          <div>
+            <dt>Total</dt>
+            <dd>
+              {anyPrepared && `${num(total.made)} made · `}
+              {num(total.sold)} sold
+              {total.held > 0 && ` · ${num(total.held)} on hold`}
+              {anyPrepared && (
+                <>
+                  {' · '}
+                  <strong className={total.left === 0 ? 'is-out' : ''}>{total.left === 0 ? 'all sold out' : `${num(total.left)} left`}</strong>
+                </>
+              )}
+            </dd>
+          </div>
+        </dl>
+      )}
       {!anyPrepared && <p className="meta tray-note">Set how many you made today to see what is left.</p>}
       <PreparedSheet open={editing} onClose={() => setEditing(false)} view={view} products={products} onSaved={onChange} />
     </Panel>

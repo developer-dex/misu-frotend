@@ -1132,6 +1132,37 @@ button:disabled {
   margin-top: 12px;
 }
 
+/* All flavours added up, under the trays */
+.tray-total {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-row);
+}
+
+.tray-total > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tray-total dt {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tray-total dd {
+  color: var(--ink-2);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tray-total strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
 .bar {
   height: 8px;
   border-radius: 4px;
@@ -2983,4 +3014,8 @@ button:disabled {
 
 .day-off-text strong {
   color: var(--ink);
+}
+
+.tray-total strong.is-out {
+  color: var(--ink-3);
 }
