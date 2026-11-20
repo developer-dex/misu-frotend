@@ -1169,6 +1169,31 @@ button.page-refresh {
   text-align: right;
 }
 
+/* Roughly what the day brings in once everything made is sold */
+.tray-total > .tray-money {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  align-items: center;
+}
+
+.tray-money dt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tray-money .meta {
+  font-weight: 500;
+}
+
+.tray-total .tray-money dd {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .tray-total strong {
   color: var(--ink);
   font-weight: 700;

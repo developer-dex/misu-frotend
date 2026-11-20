@@ -763,6 +763,11 @@ function StockPanel({ view, products, onChange }: { view: DayView; products: Pro
     },
     { made: 0, sold: 0, held: 0, left: 0 },
   );
+  // Roughly what the day brings in once the tray is empty: taken so far, plus the
+  // orders on hold, plus what is left at today's prices (before any discounts)
+  const priceOf = new Map(products.map((p) => [p.id, p.price]));
+  const leftValue = view.byProduct.reduce((sum, p) => sum + Math.max(0, leftOf(p) ?? 0) * (priceOf.get(p.productId) ?? 0), 0);
+  const expected = view.summary.net + view.summary.heldTotal + leftValue;
 
   return (
     <Panel
@@ -826,6 +831,19 @@ function StockPanel({ view, products, onChange }: { view: DayView; products: Pro
               )}
             </dd>
           </div>
+          {anyPrepared && (
+            <div className="tray-money">
+              <dt>
+                If all sell
+                <span className="meta">
+                  {inr(view.summary.net)} taken
+                  {view.summary.heldTotal > 0 && ` + ${inr(view.summary.heldTotal)} on hold`}
+                  {leftValue > 0 && ` + ${inr(leftValue)} still in the tray`}
+                </span>
+              </dt>
+              <dd>≈ {inr(expected)}</dd>
+            </div>
+          )}
         </dl>
       )}
       {!anyPrepared && <p className="meta tray-note">Set how many you made today to see what is left.</p>}
