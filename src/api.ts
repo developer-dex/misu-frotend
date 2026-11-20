@@ -3,9 +3,40 @@ import { clearLoadCache } from './lib/useLoad';
 
 const TOKEN_KEY = 'misu.token';
 
-// Set VITE_API_URL (e.g. https://misu-backend.onrender.com) to call the backend directly
-// instead of through the frontend host: one hop less on every request
-const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+// Where the backend lives. On the live site the app calls Render directly:
+// going through Vercel's /api rewrite adds a hop that now and then stalls for
+// 30 seconds or more, which showed up as "No connection" after a few orders.
+// The rewrite stays as a second route, used when the direct one fails.
+// VITE_API_URL can still point elsewhere (a test server, for example).
+const DIRECT = (import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? 'https://misu-backend.onrender.com' : '')).replace(/\/+$/, '');
+const ROUTES = import.meta.env.PROD && DIRECT ? [DIRECT, ''] : [DIRECT];
+
+// How long one try may take before it is given up and tried again
+const TRY_MS = 15_000;
+// A request that cannot safely be sent twice gets one long try instead,
+// long enough for a server that was asleep to wake up (about a minute)
+const SINGLE_TRY_MS = 60_000;
+const TRIES = 4;
+// Reading, and writes that land the same however often they are sent
+const REPEATABLE = new Set(['GET', 'PUT', 'PATCH']);
+
+// Saves still on their way, so a refresh or closing the tab does not lose one
+let pendingWrites = 0;
+export function hasPendingWrites(): boolean {
+  return pendingWrites > 0;
+}
+window.addEventListener('beforeunload', (e) => {
+  if (pendingWrites > 0) e.preventDefault();
+});
+
+/** A random id for a new order, so a retried save is recognised by the server. */
+export function newClientId(): string {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  }
+}
 
 export function getToken(): string | null {
   try {
@@ -38,26 +69,70 @@ export class ApiError extends Error {
 /** Fired when the server rejects the stored token, so the app can show the login screen. */
 export const UNAUTHORIZED_EVENT = 'misu:unauthorized';
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+type RequestOptions = {
+  /** Send again after a dropped connection; only for requests the server can tell apart if they arrive twice */
+  retry?: boolean;
+  /** Called before each new try, so the screen can say it is still working */
+  onRetry?: (attempt: number) => void;
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function request<T>(method: string, path: string, body?: unknown, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let res: Response;
+  const repeatable = options.retry ?? REPEATABLE.has(method);
+  const tries = repeatable ? TRIES : 1;
+  const write = method !== 'GET';
+  if (write) pendingWrites++;
   try {
-    res = await fetch(`${API_BASE}/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch {
-    throw new ApiError(0, 'No connection. Check your internet and try again.');
-  }
+    let timedOut = false;
+    for (let attempt = 0; attempt < tries; attempt++) {
+      if (attempt > 0) {
+        options.onRetry?.(attempt);
+        // 0.5 s, 1.5 s, 3 s: a short wobble clears fast, a waking server gets time
+        await sleep([500, 1500, 3000][attempt - 1] ?? 3000);
+      }
+      const base = ROUTES[attempt % ROUTES.length];
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), repeatable ? TRY_MS : SINGLE_TRY_MS);
+      let res: Response;
+      try {
+        res = await fetch(`${base}/api${path}`, {
+          method,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+      } catch {
+        timedOut = controller.signal.aborted;
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
 
-  if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    if (res.status === 401 && !path.startsWith('/auth/login')) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
-    throw new ApiError(res.status, (data as { error?: string }).error ?? `Request failed (${res.status})`);
+      // The host answered for a server that is waking up or restarting: worth another go
+      if (repeatable && attempt < tries - 1 && (res.status === 502 || res.status === 503 || res.status === 504)) continue;
+
+      if (res.status === 204) return undefined as T;
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 401 && !path.startsWith('/auth/login')) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+        throw new ApiError(res.status, (data as { error?: string }).error ?? `Request failed (${res.status})`);
+      }
+      return data as T;
+    }
+    throw new ApiError(
+      0,
+      timedOut ? 'The server is taking too long to answer. Check your internet and try again.' : 'No connection. Check your internet and try again.',
+    );
+  } finally {
+    if (write) pendingWrites--;
   }
-  return data as T;
 }
 
 const qs = (params: Record<string, string>) => `?${new URLSearchParams(params).toString()}`;
@@ -95,8 +170,10 @@ export const api = {
     discount: number;
     payment: Payment | 'hold';
     customer?: { name: string; phone: string };
-  }) =>
-    request<{ orderId: string; day: DayView }>('POST', '/orders', body),
+    /** From newClientId(): lets a save be retried without recording the sale twice */
+    clientId: string;
+  }, onRetry?: (attempt: number) => void) =>
+    request<{ orderId: string; day: DayView }>('POST', '/orders', body, { retry: true, onRetry }),
   setOrderPayment: (id: string, payment: Payment) => request<{ day: DayView }>('PATCH', `/orders/${id}`, { payment }),
   deleteOrder: (id: string) => request<{ day: DayView }>('DELETE', `/orders/${id}`),
 

@@ -710,6 +710,17 @@ button:disabled {
   background: var(--surface-2);
 }
 
+/* Refresh and Change day, side by side at the top of Sell */
+.title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+button.page-refresh {
+  font-family: inherit;
+}
+
 .day-picker.is-past {
   border-color: var(--notice-line);
   background: var(--notice-bg);

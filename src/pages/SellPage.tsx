@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertTriangle, Banknote, CalendarDays, Check, Clock, Phone, Pause, Play, RefreshCw, Smartphone, X } from 'lucide-react';
-import { api } from '../api';
+import { ApiError, api, hasPendingWrites, newClientId } from '../api';
 import { SellTabs } from '../components/SellTabs';
 import { useToast } from '../components/Toast';
 import { Empty, LoadError, MoneyInput, Panel, Sheet, Spinner, Stepper, toAmount } from '../components/ui';
@@ -106,11 +106,30 @@ export function SellPage() {
             )}
           </p>
         </div>
-        <DayPicker
-          day={view.day}
-          onPick={(d) => setPickedDay(d === today ? null : d)}
-          isToday={view.day === today && pickedDay === null}
-        />
+        <div className="title-actions">
+          <button
+            type="button"
+            className="day-picker page-refresh"
+            onClick={() => {
+              // A full reload would drop an order still on its way to the server
+              if (hasPendingWrites()) return toast('An order is still saving. Refresh once it is saved.');
+              if (!navigator.onLine) {
+                toast('No internet right now. Showing the last figures.', { tone: 'error' });
+                return reloadAll.current();
+              }
+              window.location.reload();
+            }}
+            aria-label="Refresh the whole page"
+          >
+            <RefreshCw size={18} strokeWidth={1.75} aria-hidden="true" />
+            <span>Refresh</span>
+          </button>
+          <DayPicker
+            day={view.day}
+            onPick={(d) => setPickedDay(d === today ? null : d)}
+            isToday={view.day === today && pickedDay === null}
+          />
+        </div>
       </div>
 
       <SellTabs />
@@ -393,6 +412,9 @@ function OrderForm({
   const [received, setReceived] = useState('');
   // Orders still on their way to the server; the form is free for the next one meanwhile
   const sending = useRef({ seq: 0, applied: 0, open: 0, skipped: false });
+  // An order that failed to save is put back in the form with its id, so sending
+  // it again cannot record it twice if the first try did reach the server
+  const failed = useRef<{ clientId: string; key: string } | null>(null);
 
   const lines = products.filter((p) => (qty[p.id] ?? 0) > 0);
   const units = lines.reduce((s, p) => s + qty[p.id], 0);
@@ -425,6 +447,9 @@ function OrderForm({
     const customer = payment === 'hold' ? { name: customerName.trim(), phone: customerPhone.trim() } : undefined;
     const draft = { qty, discount, discountMode, payment, customerName, customerPhone };
     const items = lines.map((p) => ({ productId: p.id, qty: qty[p.id] }));
+    const key = JSON.stringify({ items, discountAmount, payment, customer });
+    const clientId = failed.current?.key === key ? failed.current.clientId : newClientId();
+    failed.current = null;
     const label = `${plural(units, 'tiramisu', 'tiramisu')} · ${inr(total)} ${payment === 'hold' ? `on hold for ${customer!.name}` : payment}`;
     const s = sending.current;
     const id = ++s.seq;
@@ -433,7 +458,9 @@ function OrderForm({
     reset();
     toast(`Saving ${label}…`);
     try {
-      const res = await api.addOrder({ day, items, discount: discountAmount, payment: draft.payment, customer });
+      const res = await api.addOrder({ day, items, discount: discountAmount, payment: draft.payment, customer, clientId }, () =>
+        toast(`Still saving ${label}… the connection is slow`),
+      );
       // Answers can come back out of order; an older one must not hide a newer order
       if (id > s.applied) {
         s.applied = id;
@@ -455,13 +482,18 @@ function OrderForm({
       });
     } catch (err) {
       // Put the order back so nothing is lost
+      failed.current = { clientId, key };
       setQty(draft.qty);
       setDiscount(draft.discount);
       setDiscountMode(draft.discountMode);
       setPayment(draft.payment);
       setCustomerName(draft.customerName);
       setCustomerPhone(draft.customerPhone);
-      toast(`Not saved: ${(err as Error).message}`, { tone: 'error' });
+      const offline = err instanceof ApiError && err.status === 0;
+      // The order may have reached the server even so; its id makes sending it again safe
+      toast(offline ? `Not saved: ${err.message} The order is back in the form; submit it again, it will not be counted twice.` : `Not saved: ${(err as Error).message}`, {
+        tone: 'error',
+      });
     } finally {
       s.open--;
       if (s.open === 0 && s.skipped) {

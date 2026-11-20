@@ -28,7 +28,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     window.clearTimeout(timer.current);
     const id = Date.now();
     setToast({ id, message, tone: options.tone ?? 'default', action: options.action });
-    timer.current = window.setTimeout(() => setToast((t) => (t?.id === id ? null : t)), options.action ? 6000 : 3500);
+    timer.current = window.setTimeout(() => setToast((t) => (t?.id === id ? null : t)), options.action ? 6000 : options.tone === 'error' ? 7000 : 3500);
   }, []);
 
   return (
